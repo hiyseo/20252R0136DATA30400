@@ -1,0 +1,65 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environment
+venv/
+env/
+ENV/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# PyTorch
+*.pt
+*.pth
+*.ckpt
+
+# Data (large files)
+data/raw/
+data/intermediate/*.pkl
+data/intermediate/*.csv
+data/output/*.csv
+
+# Models (large files - provide download link)
+models/
+checkpoints/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Config (if contains sensitive info)
+# config/config.yaml
+
+# LLM logs (may be large)
+llm_logs/
+
+# Temporary files
+*.log
+*.tmp
