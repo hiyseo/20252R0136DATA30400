@@ -1,0 +1,53 @@
+# Hierarchical Multi-Label Classification Configuration
+
+# Data
+data:
+  data_dir: "data/raw/Amazon_products"
+  train_labels_path: "data/intermediate/train_silver_labels.pkl"
+  test_labels_path: "data/intermediate/test_silver_labels.pkl"
+  max_length: 128
+  num_workers: 4
+
+# Model
+model:
+  model_name: "bert-base-uncased"  # or "roberta-base", "distilbert-base-uncased"
+  num_classes: 531
+  dropout: 0.1
+  freeze_encoder: false
+
+# Training
+training:
+  batch_size: 16
+  num_epochs: 5
+  learning_rate: 2.0e-5
+  weight_decay: 0.01
+  warmup_ratio: 0.1
+  gradient_clip_norm: 1.0
+  
+  # Loss function: bce, focal, asymmetric, hierarchical
+  loss_type: "bce"
+  
+  # For focal loss
+  focal_alpha: 0.25
+  focal_gamma: 2.0
+  
+  # For hierarchical loss
+  lambda_hier: 0.1
+
+# Evaluation
+evaluation:
+  eval_every: 1  # Evaluate every N epochs
+  save_every: 1  # Save checkpoint every N epochs
+  metric: "micro_f1"  # Metric to optimize
+
+# Output
+output:
+  output_dir: "models/baseline"
+  log_dir: "logs"
+  save_predictions: true
+
+# Misc
+misc:
+  seed: 42
+  device: "auto"  # auto, cpu, cuda, mps
+  mixed_precision: false  # Use mixed precision training (faster on GPU)
