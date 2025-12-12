@@ -37,7 +37,8 @@ def load_config(config_path: str) -> dict:
     return config
 
 
-def train_epoch(model, dataloader, criterion, optimizer, scheduler, device, logger):
+def train_epoch(model, dataloader, criterion, optimizer, scheduler, device, logger, 
+                use_amp=False, scaler=None):
     """Train for one epoch."""
     model.train()
     total_loss = 0
@@ -49,15 +50,31 @@ def train_epoch(model, dataloader, criterion, optimizer, scheduler, device, logg
         attention_mask = batch['attention_mask'].to(device)
         labels = batch['labels'].to(device)
         
-        # Forward pass
-        logits = model(input_ids, attention_mask)
-        loss = criterion(logits, labels)
-        
-        # Backward pass
         optimizer.zero_grad()
-        loss.backward()
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
-        optimizer.step()
+        
+        # Mixed precision forward pass
+        if use_amp:
+            from torch.cuda.amp import autocast
+            with autocast():
+                logits = model(input_ids, attention_mask)
+                loss = criterion(logits, labels)
+            
+            # Backward pass with gradient scaling
+            scaler.scale(loss).backward()
+            scaler.unscale_(optimizer)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            # Standard forward pass
+            logits = model(input_ids, attention_mask)
+            loss = criterion(logits, labels)
+            
+            # Standard backward pass
+            loss.backward()
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+            optimizer.step()
+        
         scheduler.step()
         
         total_loss += loss.item()
@@ -177,6 +194,16 @@ def main():
     logger.info(f"Total training steps: {total_steps}")
     logger.info(f"Warmup steps: {warmup_steps}")
     
+    # Mixed precision setup
+    use_amp = config['misc'].get('mixed_precision', False) and device.type == 'cuda'
+    scaler = None
+    if use_amp:
+        from torch.cuda.amp import GradScaler
+        scaler = GradScaler()
+        logger.info("Mixed precision training: ENABLED")
+    else:
+        logger.info("Mixed precision training: DISABLED")
+    
     # Training loop
     logger.info(f"\n=== Training for {config['training']['num_epochs']} epochs ===")
     
@@ -192,7 +219,8 @@ def main():
         
         # Train
         train_loss = train_epoch(
-            model, train_loader, criterion, optimizer, scheduler, device, logger
+            model, train_loader, criterion, optimizer, scheduler, device, logger,
+            use_amp=use_amp, scaler=scaler
         )
         
         # Save checkpoint
