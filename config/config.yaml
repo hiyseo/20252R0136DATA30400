@@ -75,4 +75,4 @@ output:
 misc:
   seed: 42
   device: "auto"  # auto, cpu, cuda, mps
-  mixed_precision: false  # Use mixed precision training (faster on GPU)
+  mixed_precision: true  # Use mixed precision training (faster on GPU)
