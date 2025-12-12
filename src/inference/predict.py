@@ -187,9 +187,17 @@ def main():
     # Load data
     logger.info(f"Loading test data from {args.data_dir}")
     data_loader_obj = HierarchicalDataLoader(data_dir=args.data_dir)
+    data_loader_obj.load_all()
     
-    # Get test data
-    test_dataset = data_loader_obj.load_test_data()
+    # Create test dataset
+    from src.dataset import ProductReviewDataset
+    test_dataset = ProductReviewDataset(
+        corpus=data_loader_obj.test_corpus,
+        labels=None,  # No labels for test set
+        tokenizer_name='bert-base-uncased',
+        max_length=128
+    )
+    
     test_loader = DataLoader(
         test_dataset,
         batch_size=args.batch_size,
