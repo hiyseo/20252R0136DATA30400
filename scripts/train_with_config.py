@@ -171,8 +171,23 @@ def main():
     logger.info(f"Total parameters: {total_params:,}")
     logger.info(f"Trainable parameters: {trainable_params:,}")
     
+    # Build hierarchy structures for loss
+    logger.info("\n=== Building Hierarchy Structures ===")
+    hierarchy_kwargs = {}
+    
+    if config['training']['loss_type'] == 'hierarchical':
+        from src.silver_labeling.graph_utils import TaxonomyGraph
+        
+        taxonomy = TaxonomyGraph(data_loader.hierarchy, data_loader.num_classes)
+        ancestor_matrix = taxonomy.build_ancestor_matrix()
+        hierarchy_kwargs['hierarchy_matrix'] = torch.FloatTensor(ancestor_matrix).to(device)
+        hierarchy_kwargs['lambda_hier'] = config['training'].get('lambda_hier', 0.1)
+        
+        logger.info(f"Ancestor matrix shape: {ancestor_matrix.shape}")
+        logger.info(f"Non-zero entries: {np.count_nonzero(ancestor_matrix)}")
+    
     # Loss function
-    criterion = get_loss_function(config['training']['loss_type'])
+    criterion = get_loss_function(config['training']['loss_type'], **hierarchy_kwargs)
     logger.info(f"Loss function: {config['training']['loss_type']}")
     
     # Optimizer

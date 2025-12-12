@@ -21,6 +21,11 @@ class DataLoader:
         self.class_keywords = {}
         self.train_corpus = []
         self.test_corpus = []
+    
+    @property
+    def num_classes(self) -> int:
+        """Return number of classes."""
+        return len(self.class_to_id)
         
     def load_all(self):
         """Load all data files."""

@@ -22,9 +22,23 @@ silver_labeling:
 # Model
 model:
   model_name: "bert-base-uncased"  # or "roberta-base", "distilbert-base-uncased"
+  model_type: "bert"  # bert, gcn, gat
   num_classes: 531
   dropout: 0.1
   freeze_encoder: false
+  
+  # For GNN models
+  gnn_hidden_dim: 512
+  gnn_num_layers: 2
+  gnn_num_heads: 4  # For GAT only
+
+# Self-Training
+self_training:
+  enabled: false
+  confidence_threshold: 0.7
+  max_iterations: 3
+  min_improvement: 0.001
+  epochs_per_iteration: 1
 
 # Training
 training:
