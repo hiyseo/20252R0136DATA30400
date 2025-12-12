@@ -19,7 +19,7 @@ project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
 from src.data_preprocessing import DataLoader as HierarchicalDataLoader
-from src.models.encoder import BERTEncoder
+from src.models.encoder import TextEncoder
 from src.models.classifier import MultiLabelClassifier
 from src.models.gnn_classifier import GCNClassifier, GATClassifier, build_adjacency_matrix
 from src.utils.logger import setup_logger
@@ -52,7 +52,7 @@ def load_model(checkpoint_path: str, data_loader: HierarchicalDataLoader, device
     # Initialize encoder
     model_name = config.get('model_name', 'bert-base-uncased')
     dropout = config.get('dropout', 0.1)
-    encoder = BERTEncoder(model_name=model_name, dropout=dropout)
+    encoder = TextEncoder(model_name=model_name, num_classes=num_classes, dropout=dropout)
     
     # Initialize classifier based on type
     if model_type == 'gcn':
@@ -83,7 +83,7 @@ def load_model(checkpoint_path: str, data_loader: HierarchicalDataLoader, device
             adjacency_matrix=adj_matrix
         )
     else:  # bert
-        model = MultiLabelClassifier(encoder=encoder, num_classes=num_classes)
+        model = encoder  # TextEncoder already includes classifier
     
     # Load state dict
     model.load_state_dict(checkpoint['model_state_dict'])
