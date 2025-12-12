@@ -6,6 +6,7 @@ import os
 import sys
 import yaml
 import argparse
+import json
 from pathlib import Path
 
 # Add project root to path
@@ -226,6 +227,7 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     
     best_loss = float('inf')
+    history = {'train_loss': [], 'epochs': []}
     
     for epoch in range(config['training']['num_epochs']):
         logger.info(f"\n{'='*60}")
@@ -237,6 +239,10 @@ def main():
             model, train_loader, criterion, optimizer, scheduler, device, logger,
             use_amp=use_amp, scaler=scaler
         )
+        
+        # Record metrics
+        history['train_loss'].append(train_loss)
+        history['epochs'].append(epoch + 1)
         
         # Save checkpoint
         if (epoch + 1) % config['evaluation']['save_every'] == 0:
@@ -256,14 +262,20 @@ def main():
             # Save best model
             if train_loss < best_loss:
                 best_loss = train_loss
-                best_model_path = output_dir / "best_model.pt"
-                torch.save(model.state_dict(), best_model_path)
-                logger.info(f"✓ Best model saved: {best_model_path}")
-    
     # Save final model
     final_model_path = output_dir / "final_model.pt"
     torch.save(model.state_dict(), final_model_path)
     logger.info(f"\n✓ Final model saved: {final_model_path}")
+    
+    # Save training history
+    history_path = output_dir / "training_history.json"
+    with open(history_path, 'w') as f:
+        json.dump(history, f, indent=2)
+    logger.info(f"✓ Training history saved: {history_path}")
+    
+    logger.info("\n" + "="*60)
+    logger.info("Training Complete!")
+    logger.info("="*60)inal model saved: {final_model_path}")
     
     logger.info("\n" + "="*60)
     logger.info("Training Complete!")
