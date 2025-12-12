@@ -18,7 +18,7 @@ import numpy as np
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.data_preprocessing import HierarchicalDataLoader
+from src.data_preprocessing import DataLoader as HierarchicalDataLoader
 from src.models.encoder import BERTEncoder
 from src.models.classifier import MultiLabelClassifier
 from src.models.gnn_classifier import GCNClassifier, GATClassifier, build_adjacency_matrix
