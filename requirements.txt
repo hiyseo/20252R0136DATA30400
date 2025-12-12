@@ -22,6 +22,9 @@ seaborn>=0.12.0
 # Configuration
 pyyaml>=6.0
 
+# LLM (optional, for keyword expansion)
+openai>=1.0.0
+
 # Jupyter
 jupyter>=1.0.0
 ipykernel>=6.0.0

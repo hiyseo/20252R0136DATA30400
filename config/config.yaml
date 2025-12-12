@@ -18,6 +18,14 @@ silver_labeling:
   min_confidence: 0.1  # Minimum confidence threshold
   similarity_threshold: 0.5  # Minimum cosine similarity for semantic matching
   batch_size: 32  # Batch size for encoding
+  
+  # LLM keyword expansion (optional)
+  llm_expansion:
+    enabled: false  # Set to true to use LLM keyword expansion
+    model: "gpt-4o-mini"  # or "gpt-3.5-turbo"
+    max_calls: 1000  # Maximum API calls allowed
+    min_keywords: 5  # Expand classes with fewer than this many keywords
+    priority_limit: 100  # Number of priority classes to expand
 
 # Model
 model:
