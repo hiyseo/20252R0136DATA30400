@@ -16,7 +16,7 @@ class ProductReviewDataset(Dataset):
     def __init__(self, 
                  corpus: List[Tuple[int, str]],
                  labels: Optional[np.ndarray] = None,
-                 tokenizer_name: str = "bert-base-uncased",
+                 tokenizer_name: str = "bert-base-uncased",  # Keep default for backward compatibility
                  max_length: int = 128,
                  use_cached_tokenizer: bool = True):
         """
@@ -82,7 +82,7 @@ class SilverLabelDataset(ProductReviewDataset):
                  corpus: List[Tuple[int, str]],
                  labels: np.ndarray,
                  confidences: np.ndarray,
-                 tokenizer_name: str = "bert-base-uncased",
+                 tokenizer_name: str = "bert-base-uncased",  # Keep default for backward compatibility
                  max_length: int = 128,
                  min_confidence: float = 0.0):
         """
@@ -131,7 +131,7 @@ def create_dataloaders(train_corpus: List[Tuple[int, str]],
                       test_corpus: List[Tuple[int, str]],
                       train_labels: np.ndarray,
                       train_confidences: Optional[np.ndarray] = None,
-                      tokenizer_name: str = "bert-base-uncased",
+                      tokenizer_name: str = "bert-base-uncased",  # Keep default for backward compatibility
                       batch_size: int = 16,
                       max_length: int = 128,
                       num_workers: int = 4):

@@ -39,9 +39,11 @@ data/intermediate/*.pkl
 data/intermediate/*.csv
 data/output/*.csv
 
-# Models (large files - provide download link)
-models/
-checkpoints/
+# Models (large files - track code but not weights)
+models/*.pth
+models/*.pt
+checkpoints/*.pth
+checkpoints/*.pt
 
 # IDE
 .vscode/

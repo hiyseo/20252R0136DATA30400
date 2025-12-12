@@ -8,6 +8,17 @@ data:
   max_length: 128
   num_workers: 4
 
+# Silver Labeling
+silver_labeling:
+  embedding_model: "sentence-transformers/all-mpnet-base-v2"
+  use_keyword_matching: true
+  use_semantic_similarity: true
+  keyword_weight: 0.3  # Weight for keyword matching score
+  similarity_weight: 0.7  # Weight for semantic similarity score
+  min_confidence: 0.1  # Minimum confidence threshold
+  similarity_threshold: 0.5  # Minimum cosine similarity for semantic matching
+  batch_size: 32  # Batch size for encoding
+
 # Model
 model:
   model_name: "bert-base-uncased"  # or "roberta-base", "distilbert-base-uncased"
