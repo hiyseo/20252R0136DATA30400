@@ -1,30 +1,49 @@
-# Core dependencies
+# Core ML/Data Science
 numpy>=1.24.0
 pandas>=2.0.0
 scikit-learn>=1.3.0
+scipy>=1.10.0
 
-# Deep Learning
+# Deep Learning Framework
 torch>=2.0.0
+torchvision>=0.15.0  # For image utilities if needed
 transformers>=4.30.0
 sentence-transformers>=2.2.0
+accelerate>=0.20.0  # For distributed training
 
-# Graph processing
+# Graph Processing & Hierarchy
 networkx>=3.0
 
-# Data processing
+# NLP & Text Processing
 nltk>=3.8
+spacy>=3.5.0  # Optional: advanced NLP
+
+# Progress & Utilities
 tqdm>=4.65.0
+python-dotenv>=1.0.0  # For environment variables
 
 # Visualization
 matplotlib>=3.7.0
 seaborn>=0.12.0
+plotly>=5.14.0  # Interactive plots
 
-# Configuration
+# Configuration & Logging
 pyyaml>=6.0
+colorlog>=6.7.0  # Colored logging
 
-# LLM (optional, for keyword expansion)
+# LLM Integration (Optional - for keyword expansion)
 openai>=1.0.0
 
-# Jupyter
+# Development & Notebook
 jupyter>=1.0.0
 ipykernel>=6.0.0
+notebook>=7.0.0
+ipywidgets>=8.0.0
+
+# Testing (Optional)
+pytest>=7.4.0
+pytest-cov>=4.1.0
+
+# AWS (Optional - for SageMaker)
+boto3>=1.28.0
+sagemaker>=2.160.0
