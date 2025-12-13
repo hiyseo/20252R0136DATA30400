@@ -43,18 +43,21 @@ def main():
     # Get silver labeling config
     sl_config = config.get('silver_labeling', {})
     
-    # Initialize generator
+    # Initialize generator with hybrid top-down approach
     generator = SilverLabelGenerator(
         class_keywords=data_loader.class_keywords,
         class_to_id=data_loader.class_to_id,
         id_to_class=data_loader.id_to_class,
+        hierarchy_graph=data_loader.hierarchy,
         min_confidence=sl_config.get('min_confidence', 0.1),
         embedding_model=sl_config.get('embedding_model', 'sentence-transformers/all-mpnet-base-v2'),
         use_keyword_matching=sl_config.get('use_keyword_matching', True),
         use_semantic_similarity=sl_config.get('use_semantic_similarity', True),
+        use_topdown_filtering=sl_config.get('use_topdown_filtering', True),
         keyword_weight=sl_config.get('keyword_weight', 0.3),
         similarity_weight=sl_config.get('similarity_weight', 0.7),
         similarity_threshold=sl_config.get('similarity_threshold', 0.5),
+        topdown_threshold=sl_config.get('topdown_threshold', 0.15),
         batch_size=sl_config.get('batch_size', 32)
     )
     

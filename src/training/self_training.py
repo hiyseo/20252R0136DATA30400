@@ -40,23 +40,24 @@ class SelfTrainer:
     @torch.no_grad()
     def generate_pseudo_labels(self,
                               unlabeled_loader: DataLoader,
-                              use_amp: bool = False) -> Tuple[List, List, List]:
+                              use_amp: bool = False,
+                              use_soft_labels: bool = True) -> Tuple[List, List, List]:
         """
         Generate pseudo-labels for unlabeled data.
         
         Args:
             unlabeled_loader: DataLoader for unlabeled data
             use_amp: Use automatic mixed precision
+            use_soft_labels: Use soft probability labels instead of hard binary
             
         Returns:
-            Tuple of (input_ids, attention_masks, pseudo_labels, confidences)
+            Tuple of (input_ids, attention_masks, pseudo_labels)
         """
         self.model.eval()
         
         all_input_ids = []
         all_attention_masks = []
         all_pseudo_labels = []
-        all_confidences = []
         
         for batch in tqdm(unlabeled_loader, desc="Generating pseudo-labels"):
             input_ids = batch['input_ids'].to(self.device)
@@ -72,38 +73,41 @@ class SelfTrainer:
             
             probs = torch.sigmoid(logits)
             
-            # Filter by confidence
-            confident_mask = probs >= self.confidence_threshold
-            
-            # Create pseudo-labels (binary)
-            pseudo_labels = (probs >= 0.5).float()
-            
-            # Only keep samples with at least one confident prediction
-            has_confident = confident_mask.any(dim=1)
+            # Filter by confidence: at least one prediction above threshold
+            max_probs = probs.max(dim=1)[0]
+            has_confident = max_probs >= self.confidence_threshold
             
             if has_confident.any():
                 all_input_ids.append(input_ids[has_confident].cpu())
                 all_attention_masks.append(attention_mask[has_confident].cpu())
-                all_pseudo_labels.append(pseudo_labels[has_confident].cpu())
-                all_confidences.append(probs[has_confident].cpu())
+                
+                # Use soft labels (probabilities) or hard labels (binary)
+                if use_soft_labels:
+                    # Keep probability distribution as soft targets
+                    pseudo_labels = probs[has_confident].cpu()
+                else:
+                    # Hard binary labels
+                    pseudo_labels = (probs[has_confident] >= 0.5).float().cpu()
+                
+                all_pseudo_labels.append(pseudo_labels)
         
         if len(all_input_ids) == 0:
-            return [], [], [], []
+            return [], [], []
         
         # Concatenate
         all_input_ids = torch.cat(all_input_ids, dim=0)
         all_attention_masks = torch.cat(all_attention_masks, dim=0)
         all_pseudo_labels = torch.cat(all_pseudo_labels, dim=0)
-        all_confidences = torch.cat(all_confidences, dim=0)
         
-        return all_input_ids, all_attention_masks, all_pseudo_labels, all_confidences
+        return all_input_ids, all_attention_masks, all_pseudo_labels
     
     def create_combined_loader(self,
                               labeled_loader: DataLoader,
                               pseudo_input_ids: torch.Tensor,
                               pseudo_attention_masks: torch.Tensor,
                               pseudo_labels: torch.Tensor,
-                              batch_size: int = 16) -> DataLoader:
+                              batch_size: int = 16,
+                              sample_weight: float = 0.5) -> DataLoader:
         """
         Combine labeled and pseudo-labeled data.
         
@@ -267,9 +271,9 @@ class SelfTrainer:
                 print(f"Self-training Iteration {iteration + 1}/{self.max_iterations}")
                 print(f"{'='*60}")
             
-            # Generate pseudo-labels
-            pseudo_ids, pseudo_masks, pseudo_labels, pseudo_confs = self.generate_pseudo_labels(
-                unlabeled_loader, use_amp
+            # Generate pseudo-labels (soft labels)
+            pseudo_ids, pseudo_masks, pseudo_labels = self.generate_pseudo_labels(
+                unlabeled_loader, use_amp, use_soft_labels=True
             )
             
             num_pseudo = len(pseudo_ids) if len(pseudo_ids) > 0 else 0

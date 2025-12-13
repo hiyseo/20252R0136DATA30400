@@ -19,6 +19,7 @@ from src.data_preprocessing import DataLoader as DataPreprocessor
 from src.dataset import create_dataloaders
 from src.models.encoder import TextEncoder, get_device
 from src.training.loss_functions import get_loss_function
+from src.training.self_training import SelfTrainer
 from src.utils.metrics import compute_multilabel_metrics, find_optimal_threshold
 from src.utils.seed import set_seed
 from src.silver_labeling.generate_silver_labels import SilverLabelGenerator
@@ -95,7 +96,7 @@ def evaluate(model, dataloader, criterion, device):
 
 
 def train_baseline_model(args):
-    """Main training function."""
+    """Main training function with optional self-training."""
     
     # Set seed
     set_seed(args.seed)
@@ -161,38 +162,79 @@ def train_baseline_model(args):
         num_training_steps=total_steps
     )
     
-    # Training loop
-    print(f"\n=== Training for {args.num_epochs} epochs ===")
-    best_f1 = 0.0
-    
-    for epoch in range(args.num_epochs):
-        print(f"\nEpoch {epoch + 1}/{args.num_epochs}")
+    # Self-training setup
+    if args.use_self_training:
+        print(f"\n=== Self-Training Enabled ===")
+        print(f"Confidence threshold: {args.self_training_confidence}")
+        print(f"Max iterations: {args.self_training_iterations}")
         
-        # Train
-        train_loss = train_epoch(model, train_loader, criterion, optimizer, scheduler, device)
-        print(f"Train loss: {train_loss:.4f}")
+        self_trainer = SelfTrainer(
+            model=model,
+            device=device,
+            confidence_threshold=args.self_training_confidence,
+            max_iterations=args.self_training_iterations,
+            min_improvement=0.001
+        )
         
-        # Evaluate (use a subset of training data as validation)
-        # In real scenario, you should have a separate validation set
-        # Here we skip evaluation to save time
+        # Use test_loader as unlabeled data for pseudo-labeling
+        unlabeled_loader = test_loader
         
-        # Save checkpoint
-        if (epoch + 1) % args.save_every == 0:
-            checkpoint_path = Path(args.output_dir) / f"checkpoint_epoch_{epoch+1}.pt"
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        # Self-training with KLD loss for soft labels
+        kld_criterion = get_loss_function('kld')
+        
+        stats = self_trainer.self_train(
+            labeled_loader=train_loader,
+            unlabeled_loader=unlabeled_loader,
+            criterion=kld_criterion,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            num_epochs_per_iteration=args.num_epochs,
+            use_amp=False
+        )
+        
+        print(f"\n✓ Self-training completed")
+        print(f"Iterations: {len(stats['iterations'])}")
+        print(f"Final loss: {stats['losses'][-1]:.4f}")
+        
+    else:
+        # Standard training loop
+        print(f"\n=== Training for {args.num_epochs} epochs ===")
+        best_f1 = 0.0
+        training_history = {'train_loss': [], 'epochs': []}
+        
+        for epoch in range(args.num_epochs):
+            print(f"\nEpoch {epoch + 1}/{args.num_epochs}")
             
-            torch.save({
-                'epoch': epoch + 1,
-                'model_state_dict': model.state_dict(),
-                'optimizer_state_dict': optimizer.state_dict(),
-                'scheduler_state_dict': scheduler.state_dict(),
-                'train_loss': train_loss,
-            }, checkpoint_path)
+            # Train
+            train_loss = train_epoch(model, train_loader, criterion, optimizer, scheduler, device)
+            print(f"Train loss: {train_loss:.4f}")
             
-            print(f"✓ Checkpoint saved: {checkpoint_path}")
+            training_history['train_loss'].append(train_loss)
+            training_history['epochs'].append(epoch + 1)
+            
+            # Save checkpoint
+            if (epoch + 1) % args.save_every == 0:
+                checkpoint_path = Path(args.output_dir) / f"checkpoint_epoch_{epoch+1}.pt"
+                checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+                
+                torch.save({
+                    'epoch': epoch + 1,
+                    'model_state_dict': model.state_dict(),
+                    'optimizer_state_dict': optimizer.state_dict(),
+                    'scheduler_state_dict': scheduler.state_dict(),
+                    'train_loss': train_loss,
+                }, checkpoint_path)
+                
+                print(f"✓ Checkpoint saved: {checkpoint_path}")
+        
+        # Save training history
+        import json
+        history_path = Path(args.output_dir) / "training_history.json"
+        with open(history_path, 'w') as f:
+            json.dump(training_history, f, indent=2)
     
     # Save final model
-    final_model_path = Path(args.output_dir) / "final_model.pt"
+    final_model_path = Path(args.output_dir) / "best_model.pt"
     torch.save(model.state_dict(), final_model_path)
     print(f"\n✓ Final model saved: {final_model_path}")
     
@@ -220,9 +262,17 @@ def main():
     parser.add_argument('--weight_decay', type=float, default=0.01)
     parser.add_argument('--warmup_ratio', type=float, default=0.1)
     parser.add_argument('--loss_type', type=str, default='bce', 
-                       choices=['bce', 'focal', 'asymmetric'])
+                       choices=['bce', 'focal', 'asymmetric', 'kld'])
     parser.add_argument('--model_type', type=str, default='baseline',
                        help='Model type for directory naming (baseline, gcn, gat, etc.)')
+    
+    # Self-training
+    parser.add_argument('--use_self_training', action='store_true',
+                       help='Enable self-training with pseudo-labels')
+    parser.add_argument('--self_training_confidence', type=float, default=0.7,
+                       help='Confidence threshold for pseudo-labels')
+    parser.add_argument('--self_training_iterations', type=int, default=3,
+                       help='Maximum self-training iterations')
     
     # Misc
     parser.add_argument('--seed', type=int, default=42)

@@ -20,13 +20,16 @@ class SilverLabelGenerator:
                  class_keywords: Dict[str, List[str]], 
                  class_to_id: Dict[str, int],
                  id_to_class: Dict[int, str],
+                 hierarchy_graph: Optional[object] = None,
                  min_confidence: float = 0.1,
                  embedding_model: str = "sentence-transformers/all-mpnet-base-v2",
                  use_keyword_matching: bool = True,
                  use_semantic_similarity: bool = True,
+                 use_topdown_filtering: bool = True,
                  keyword_weight: float = 0.3,
                  similarity_weight: float = 0.7,
                  similarity_threshold: float = 0.5,
+                 topdown_threshold: float = 0.15,
                  batch_size: int = 32,
                  device: Optional[str] = None):
         """
@@ -54,10 +57,17 @@ class SilverLabelGenerator:
         
         self.use_keyword_matching = use_keyword_matching
         self.use_semantic_similarity = use_semantic_similarity
+        self.use_topdown_filtering = use_topdown_filtering
         self.keyword_weight = keyword_weight
         self.similarity_weight = similarity_weight
         self.similarity_threshold = similarity_threshold
+        self.topdown_threshold = topdown_threshold
         self.batch_size = batch_size
+        
+        # Hierarchy graph for top-down filtering
+        self.hierarchy_graph = hierarchy_graph
+        if self.use_topdown_filtering and hierarchy_graph is not None:
+            self._initialize_hierarchy_levels()
         
         # Setup device
         if device is None:
@@ -77,6 +87,40 @@ class SilverLabelGenerator:
         # Initialize semantic similarity model
         if self.use_semantic_similarity:
             self._initialize_embedding_model(embedding_model)
+    
+    def _initialize_hierarchy_levels(self):
+        """Initialize hierarchy level information for top-down filtering."""
+        import networkx as nx
+        
+        # Find root nodes (no parents)
+        self.root_nodes = [n for n in self.hierarchy_graph.nodes() 
+                          if self.hierarchy_graph.in_degree(n) == 0]
+        
+        # Compute depth for each node
+        self.node_depths = {}
+        for node in self.hierarchy_graph.nodes():
+            if self.hierarchy_graph.in_degree(node) == 0:
+                self.node_depths[node] = 0
+            else:
+                try:
+                    min_depth = min(
+                        nx.shortest_path_length(self.hierarchy_graph, root, node)
+                        for root in self.root_nodes 
+                        if nx.has_path(self.hierarchy_graph, root, node)
+                    )
+                    self.node_depths[node] = min_depth
+                except:
+                    self.node_depths[node] = 0
+        
+        # Group nodes by depth level
+        self.levels = {}
+        for node, depth in self.node_depths.items():
+            if depth not in self.levels:
+                self.levels[depth] = []
+            self.levels[depth].append(node)
+        
+        self.max_depth = max(self.levels.keys())
+        print(f"✓ Hierarchy initialized: {len(self.root_nodes)} roots, {self.max_depth+1} levels")
         
     def _preprocess_keywords(self):
         """Preprocess keywords for efficient matching."""
@@ -181,7 +225,9 @@ class SilverLabelGenerator:
     
     def generate_labels_for_text(self, text: str, text_embedding: Optional[np.ndarray] = None) -> Dict[int, float]:
         """
-        Generate labels for a single text using combined scoring.
+        Generate labels for a single text using hybrid approach:
+        1. Compute scores for all classes (keyword + semantic)
+        2. Apply top-down filtering using hierarchy
         
         Args:
             text: Input text
@@ -190,14 +236,11 @@ class SilverLabelGenerator:
         Returns:
             Dictionary mapping class IDs to confidence scores
         """
-        combined_scores = {}
-        
-        # Keyword matching
+        # Step 1: Compute raw scores for all classes
         keyword_scores = {}
         if self.use_keyword_matching:
             keyword_scores = self.match_keywords(text)
         
-        # Semantic similarity
         similarity_scores = {}
         if self.use_semantic_similarity and text_embedding is not None:
             for i, class_id in enumerate(self.class_ids_for_embeddings):
@@ -205,14 +248,14 @@ class SilverLabelGenerator:
                 if sim_score >= self.similarity_threshold:
                     similarity_scores[class_id] = float(sim_score)
         
-        # Combine scores
+        # Combine scores (weighted sum)
         all_class_ids = set(keyword_scores.keys()) | set(similarity_scores.keys())
+        combined_scores = {}
         
         for class_id in all_class_ids:
             kw_score = keyword_scores.get(class_id, 0.0)
             sim_score = similarity_scores.get(class_id, 0.0)
             
-            # Weighted combination
             if self.use_keyword_matching and self.use_semantic_similarity:
                 combined_score = (self.keyword_weight * kw_score + 
                                 self.similarity_weight * sim_score)
@@ -221,10 +264,59 @@ class SilverLabelGenerator:
             else:
                 combined_score = sim_score
             
-            if combined_score >= self.min_confidence:
-                combined_scores[class_id] = combined_score
+            combined_scores[class_id] = combined_score
         
-        return combined_scores
+        # Step 2: Apply top-down filtering if enabled
+        if self.use_topdown_filtering and self.hierarchy_graph is not None:
+            filtered_scores = self._apply_topdown_filtering(combined_scores)
+        else:
+            filtered_scores = {k: v for k, v in combined_scores.items() 
+                             if v >= self.min_confidence}
+        
+        return filtered_scores
+    
+    def _apply_topdown_filtering(self, scores: Dict[int, float]) -> Dict[int, float]:
+        """
+        Apply top-down filtering using hierarchy structure.
+        Only keep children of high-confidence parents.
+        
+        Args:
+            scores: Raw class scores
+            
+        Returns:
+            Filtered scores
+        """
+        filtered = {}
+        allowed_nodes = set(self.root_nodes)  # Start with all roots
+        
+        # Process level by level (root -> mid -> leaf)
+        for depth in sorted(self.levels.keys()):
+            level_nodes = self.levels[depth]
+            
+            for node in level_nodes:
+                # Check if node is allowed (parent was selected or is root)
+                if node not in allowed_nodes:
+                    continue
+                
+                score = scores.get(node, 0.0)
+                
+                # Use different thresholds for different levels
+                if depth == 0:  # Root level - more lenient
+                    threshold = self.topdown_threshold * 0.7
+                elif depth == self.max_depth:  # Leaf level - use min_confidence
+                    threshold = self.min_confidence
+                else:  # Middle levels
+                    threshold = self.topdown_threshold
+                
+                if score >= threshold:
+                    filtered[node] = score
+                    
+                    # Allow children of this node for next level
+                    if depth < self.max_depth:
+                        children = list(self.hierarchy_graph.successors(node))
+                        allowed_nodes.update(children)
+        
+        return filtered
     
     def generate_labels(self, corpus: List[Tuple[int, str]], 
                        output_file: str = None) -> Tuple[np.ndarray, np.ndarray]:
@@ -349,12 +441,15 @@ if __name__ == "__main__":
     loader = DataLoader()
     loader.load_all()
     
-    # Generate silver labels with lower threshold for better coverage
+    # Generate silver labels with hybrid top-down approach
     generator = SilverLabelGenerator(
         loader.class_keywords,
         loader.class_to_id,
         loader.id_to_class,
-        min_confidence=0.1  # Lower threshold for better coverage
+        hierarchy_graph=loader.hierarchy,
+        min_confidence=0.1,
+        use_topdown_filtering=True,
+        topdown_threshold=0.15
     )
     
     print("\n=== Generating Silver Labels for Training Data ===")

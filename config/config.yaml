@@ -13,10 +13,12 @@ silver_labeling:
   embedding_model: "sentence-transformers/all-mpnet-base-v2"
   use_keyword_matching: true
   use_semantic_similarity: true
+  use_topdown_filtering: true  # Use hybrid top-down filtering
   keyword_weight: 0.3  # Weight for keyword matching score
   similarity_weight: 0.7  # Weight for semantic similarity score
-  min_confidence: 0.1  # Minimum confidence threshold
+  min_confidence: 0.1  # Minimum confidence threshold for final selection
   similarity_threshold: 0.5  # Minimum cosine similarity for semantic matching
+  topdown_threshold: 0.15  # Threshold for top-down hierarchy filtering
   batch_size: 32  # Batch size for encoding
   
   # LLM keyword expansion (optional)
@@ -30,7 +32,7 @@ silver_labeling:
 # Model
 model:
   model_name: "bert-base-uncased"  # or "roberta-base", "distilbert-base-uncased"
-  model_type: "bert"  # bert, gcn, gat
+  model_type: "baseline"  # baseline, gcn, gat, focal_loss, etc.
   num_classes: 531
   dropout: 0.1
   freeze_encoder: false
@@ -51,14 +53,14 @@ self_training:
 # Training
 training:
   batch_size: 16
-  num_epochs: 5
+  num_epochs: 3
   learning_rate: 2.0e-5
   weight_decay: 0.01
   warmup_ratio: 0.1
   gradient_clip_norm: 1.0
   
-  # Loss function: bce, focal, asymmetric, hierarchical
-  loss_type: "hierarchical"
+  # Loss function: bce, focal, asymmetric, hierarchical, kld
+  loss_type: "bce"
   
   # For focal loss
   focal_alpha: 0.25
@@ -75,7 +77,7 @@ evaluation:
 
 # Output
 output:
-  output_dir: "models/{model_type}"  # Use {model_type} placeholder (e.g., baseline, gcn, gat)
+  output_dir: "models/{model_type}"  # Placeholder: will use model.model_type value
   predictions_dir: "results/predictions"
   images_dir: "results/images/{model_type}"
   log_dir: "logs"

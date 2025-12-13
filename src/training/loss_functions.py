@@ -139,12 +139,35 @@ class AsymmetricLoss(nn.Module):
         return loss.mean()
 
 
+class KLDivLossForSoftLabels(nn.Module):
+    """KL Divergence loss for soft pseudo-labels in self-training."""
+    
+    def __init__(self):
+        super().__init__()
+        self.kld = nn.KLDivLoss(reduction='batchmean')
+    
+    def forward(self, logits: torch.Tensor, soft_targets: torch.Tensor) -> torch.Tensor:
+        """
+        Args:
+            logits: Model output logits (batch_size, num_classes)
+            soft_targets: Soft probability targets (batch_size, num_classes)
+        """
+        # Convert logits to log probabilities
+        log_probs = F.logsigmoid(logits)
+        
+        # Ensure targets are normalized probabilities
+        soft_targets = soft_targets.clamp(min=1e-7, max=1.0)
+        
+        # KL Divergence
+        return self.kld(log_probs, soft_targets)
+
+
 def get_loss_function(loss_type: str, **kwargs) -> nn.Module:
     """
     Get loss function by name.
     
     Args:
-        loss_type: 'bce', 'focal', 'hierarchical', or 'asymmetric'
+        loss_type: 'bce', 'focal', 'hierarchical', 'asymmetric', or 'kld'
         **kwargs: Additional arguments for loss function
         
     Returns:
@@ -158,5 +181,7 @@ def get_loss_function(loss_type: str, **kwargs) -> nn.Module:
         return HierarchicalLoss(**kwargs)
     elif loss_type == 'asymmetric':
         return AsymmetricLoss(**kwargs)
+    elif loss_type == 'kld':
+        return KLDivLossForSoftLabels(**kwargs)
     else:
         raise ValueError(f"Unknown loss type: {loss_type}")
