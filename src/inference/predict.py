@@ -111,12 +111,20 @@ def load_model(checkpoint_path: str, num_classes: int, hierarchy_graph=None, dev
 
 @torch.no_grad()
 def predict(model, data_loader, device: torch.device, threshold: float = 0.5):
-
-    for batch in tqdm(data_loader, desc="Predicting"):
-        doc_ids = batch['doc_id']
-        input_ids = batch['input_ids'].to(device)
-        attention_mask = batch['attention_mask'].to(device)
-
+    """
+    Generate predictions on dataset.
+    
+    Args:
+        model: Trained model
+        data_loader: DataLoader for test set
+        device: Device to run inference on
+        threshold: Threshold for binary classification
+        
+    Returns:
+        all_pids: List of product IDs
+        all_predictions: List of predicted class indices (multi-label)
+        all_probs: List of prediction probabilities
+    """
     model.eval()
     
     all_pids = []
@@ -126,7 +134,7 @@ def predict(model, data_loader, device: torch.device, threshold: float = 0.5):
     logger.info(f"Running inference with threshold={threshold}")
     
     for batch in tqdm(data_loader, desc="Predicting"):
-        pids = batch['pid']
+        doc_ids = batch['doc_id']
         input_ids = batch['input_ids'].to(device)
         attention_mask = batch['attention_mask'].to(device)
         
@@ -150,22 +158,16 @@ def predict(model, data_loader, device: torch.device, threshold: float = 0.5):
             all_pids.append(doc_id)
             all_predictions.append(pred_classes)
             all_probs.append(prob_values)
-    
-    logger.info(f"Generated predictions for {len(all_pids)} samples")
-    avg_labels = np.mean([len(p) for p in all_predictions])
-    logger.info(f"Average labels per sample: {avg_labels:.2f}")
-    
-    return all_pids, all_predictions, all_probs
-
-
 def main():
     parser = argparse.ArgumentParser(description="Generate predictions on test set")
     parser.add_argument('--model_path', type=str, required=True,
                        help='Path to trained model checkpoint')
     parser.add_argument('--data_dir', type=str, default='data/raw/Amazon_products',
                        help='Path to data directory')
-    parser.add_argument('--output_path', type=str, default='predictions/test_predictions.pkl',
-                       help='Path to save predictions')
+    parser.add_argument('--output_dir', type=str, default='results/predictions',
+                       help='Directory to save predictions')
+    parser.add_argument('--model_name', type=str, default=None,
+                       help='Model name for file naming (e.g., baseline, gcn). Auto-detect if not specified')
     parser.add_argument('--threshold', type=float, default=0.5,
                        help='Threshold for binary classification')
     parser.add_argument('--batch_size', type=int, default=32,
@@ -214,17 +216,33 @@ def main():
         pin_memory=True if device.type == 'cuda' else False
     )
     
-    logger.info(f"Test set size: {len(test_dataset)}")
-    
     # Load model
     model, config = load_model(args.model_path, num_classes, hierarchy_graph, device)
+    
+    # Determine model name
+    if args.model_name:
+        model_name = args.model_name
+    else:
+        # Auto-detect from config or path
+        if 'model' in config and 'model_type' in config['model']:
+            model_name = config['model']['model_type']
+        else:
+            model_name = Path(args.model_path).parent.name
     
     # Generate predictions
     pids, predictions, probs = predict(model, test_loader, device, args.threshold)
     
-    # Save predictions
-    output_path = Path(args.output_path)
-    output_path.parent.mkdir(parents=True, exist_ok=True)
+    # Create output directory
+    output_dir = Path(args.output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate filename with model name and timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Save predictions as PKL
+    pkl_filename = f"{model_name}_{timestamp}.pkl"
+    pkl_path = output_dir / pkl_filename
     
     results = {
         'pids': pids,
@@ -232,13 +250,26 @@ def main():
         'probabilities': probs,
         'config': config,
         'threshold': args.threshold,
-        'model_path': args.model_path
+        'model_path': args.model_path,
+        'model_name': model_name,
+        'timestamp': timestamp
     }
     
-    with open(output_path, 'wb') as f:
+    with open(pkl_path, 'wb') as f:
         pickle.dump(results, f)
     
-    logger.info(f"Predictions saved to {output_path}")
+    logger.info(f"✓ Predictions saved to {pkl_path}")
+    
+    # Save as CSV (Kaggle format)
+    csv_filename = f"{model_name}_{timestamp}.csv"
+    csv_path = output_dir / csv_filename
+    
+    with open(csv_path, 'w', encoding='utf-8') as f:
+        for pred_classes in predictions:
+            class_str = ' '.join(map(str, sorted(pred_classes)))
+            f.write(f"{class_str}\n")
+    
+    logger.info(f"✓ Submission CSV saved to {csv_path}")
     
     # Print statistics
     logger.info("\n=== Prediction Statistics ===")

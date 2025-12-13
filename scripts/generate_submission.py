@@ -1,12 +1,14 @@
 """
 Generate Kaggle submission file from predictions.
 Format: studentID_final.csv with predicted class IDs (space-separated) per line.
+Note: predict.py now generates CSV automatically. This script is for creating final submission file.
 """
 
 import argparse
 import pickle
 from pathlib import Path
 import sys
+import shutil
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent
@@ -60,7 +62,7 @@ def generate_submission(predictions_path: str, output_path: str, student_id: str
 def main():
     parser = argparse.ArgumentParser(description="Generate Kaggle submission file")
     parser.add_argument('--predictions', type=str, required=True,
-                       help='Path to predictions pickle file')
+                       help='Path to predictions pickle or CSV file')
     parser.add_argument('--output', type=str, default='20252R0136_final.csv',
                        help='Path to output submission file')
     parser.add_argument('--student_id', type=str, default='20252R0136',
@@ -68,7 +70,15 @@ def main():
     
     args = parser.parse_args()
     
-    generate_submission(args.predictions, args.output, args.student_id)
+    # Check if input is already CSV
+    if args.predictions.endswith('.csv'):
+        logger.info(f"Input is already CSV format: {args.predictions}")
+        logger.info(f"Copying to final submission: {args.output}")
+        shutil.copy(args.predictions, args.output)
+        logger.info(f"✓ Submission file created: {args.output}")
+    else:
+        # Generate from PKL
+        generate_submission(args.predictions, args.output, args.student_id)
     
     logger.info("\n=== Submission Ready ===")
     logger.info(f"Upload {args.output} to Kaggle")

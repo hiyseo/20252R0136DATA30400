@@ -221,13 +221,20 @@ def main():
     parser.add_argument('--warmup_ratio', type=float, default=0.1)
     parser.add_argument('--loss_type', type=str, default='bce', 
                        choices=['bce', 'focal', 'asymmetric'])
+    parser.add_argument('--model_type', type=str, default='baseline',
+                       help='Model type for directory naming (baseline, gcn, gat, etc.)')
     
     # Misc
     parser.add_argument('--seed', type=int, default=42)
-    parser.add_argument('--output_dir', type=str, default='models/baseline')
+    parser.add_argument('--output_dir', type=str, default=None,
+                       help='Output directory. If not specified, defaults to models/{model_type}')
     parser.add_argument('--save_every', type=int, default=1)
     
     args = parser.parse_args()
+    
+    # Set output_dir based on model_type if not specified
+    if args.output_dir is None:
+        args.output_dir = f'models/{args.model_type}'
     
     # Train
     train_baseline_model(args)

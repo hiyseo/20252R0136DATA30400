@@ -45,6 +45,15 @@ models/*.pt
 checkpoints/*.pth
 checkpoints/*.pt
 
+# Results (predictions and visualizations)
+results/predictions/*.pkl
+results/predictions/*.csv
+# Keep images in git (usually small)
+results/images/
+
+report/
+logs/
+
 # IDE
 .vscode/
 .idea/

@@ -75,7 +75,9 @@ evaluation:
 
 # Output
 output:
-  output_dir: "models/baseline"
+  output_dir: "models/{model_type}"  # Use {model_type} placeholder (e.g., baseline, gcn, gat)
+  predictions_dir: "results/predictions"
+  images_dir: "results/images/{model_type}"
   log_dir: "logs"
   save_predictions: true
 
