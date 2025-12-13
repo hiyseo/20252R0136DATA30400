@@ -4,6 +4,13 @@
 
 This project uses a centralized YAML configuration system (`config/config.yaml`) for managing all hyperparameters, paths, and experimental settings. The configuration supports **baseline training with 2-stage self-training** (BCE initialization + KLD self-training).
 
+### 핵심 기능
+
+1. **통합 설정 관리**: 모든 실험 설정을 단일 YAML 파일로 관리
+2. **Placeholder 지원**: `{model_type}` 등의 플레이스홀더로 동적 경로 생성
+3. **실험 추적**: `model_type`으로 각 실험을 구분하여 결과 관리
+4. **2단계 학습**: BCE 초기화 → KLD Self-Training 자동 전환
+
 ---
 
 ## Configuration Structure
@@ -78,16 +85,28 @@ model:
 - `freeze_encoder`: Set to `true` to only train classification head
 - GNN parameters: Used only for GNN-based models (not baseline)
 
-**Model Type Examples:**
+**Model Type 역할:**
+- 출력 디렉토리 경로 자동 생성: `models/{model_type}/`
+- 실험 결과 구분 및 추적
+- 로그 및 이미지 저장 경로 결정
+
+**Model Type 예시:**
 ```yaml
-# Standard baseline
+# 1. Baseline (2-stage training)
 model_type: "baseline"
+# → 출력: models/baseline/, results/images/baseline/
 
-# Focal loss experiment
+# 2. Focal loss 실험
 model_type: "focal_loss"
+# → 출력: models/focal_loss/
 
-# GCN experiment
-model_type: "gcn"
+# 3. Self-training 없이
+model_type: "no_self_training"
+# → 출력: models/no_self_training/
+
+# 4. 다른 신뢰도 임계값
+model_type: "confidence_80"
+# → 출력: models/confidence_80/
 ```
 
 ---
