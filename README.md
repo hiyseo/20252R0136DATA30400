@@ -1,6 +1,6 @@
-# Amazon 상품 계층 분류 (Hierarchical Product Classification)
+# 🛍️ Amazon Hierarchical Product Classification
 
-**학번:** 20252R0136 | **과목:** DATA304
+**학번:** 2020320135 | **과목:** DATA304
 
 ---
 
