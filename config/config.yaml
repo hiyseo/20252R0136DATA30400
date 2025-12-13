@@ -44,7 +44,7 @@ model:
 
 # Self-Training
 self_training:
-  enabled: false
+  enabled: true
   confidence_threshold: 0.7
   max_iterations: 3
   min_improvement: 0.001
