@@ -162,11 +162,36 @@ def train_baseline_model(args):
         num_training_steps=total_steps
     )
     
-    # Self-training setup
+    # Self-training setup (2-stage training)
     if args.use_self_training:
-        print(f"\n=== Self-Training Enabled ===")
+        print(f"\n=== Self-Training Enabled (2-Stage) ===")
         print(f"Confidence threshold: {args.self_training_confidence}")
         print(f"Max iterations: {args.self_training_iterations}")
+        
+        # ========================================
+        # STAGE 1: Initial training with BCE loss
+        # ========================================
+        print(f"\n=== Stage 1: Initial Training with BCE Loss ===")
+        print(f"Training for {args.num_epochs} epochs to initialize model...")
+        
+        training_history = {'train_loss': [], 'epochs': []}
+        
+        for epoch in range(args.num_epochs):
+            print(f"\nEpoch {epoch + 1}/{args.num_epochs}")
+            
+            # Train with BCE loss
+            train_loss = train_epoch(model, train_loader, criterion, optimizer, scheduler, device)
+            print(f"Train loss (BCE): {train_loss:.4f}")
+            
+            training_history['train_loss'].append(train_loss)
+            training_history['epochs'].append(epoch + 1)
+        
+        print(f"\n✓ Stage 1 completed - Model initialized with BCE loss")
+        
+        # ========================================
+        # STAGE 2: Self-training with KLD loss
+        # ========================================
+        print(f"\n=== Stage 2: Self-Training with KLD Loss ===")
         
         self_trainer = SelfTrainer(
             model=model,
@@ -179,7 +204,7 @@ def train_baseline_model(args):
         # Use test_loader as unlabeled data for pseudo-labeling
         unlabeled_loader = test_loader
         
-        # Self-training with KLD loss for soft labels
+        # Self-training with KLD loss for soft pseudo-labels
         kld_criterion = get_loss_function('kld')
         
         stats = self_trainer.self_train(
@@ -192,20 +217,28 @@ def train_baseline_model(args):
             use_amp=False
         )
         
-        print(f"\n✓ Self-training completed")
-        print(f"Iterations: {len(stats['iterations'])}")
+        print(f"\n✓ Stage 2 completed - Self-training finished")
+        print(f"Self-training iterations: {len(stats['iterations'])}")
         print(f"Final loss: {stats['losses'][-1]:.4f}")
         
+        # Save combined training history
+        import json
+        training_history['self_training_stats'] = stats
+        history_path = Path(args.output_dir) / "training_history.json"
+        with open(history_path, 'w') as f:
+            json.dump(training_history, f, indent=2)
+        
     else:
-        # Standard training loop
-        print(f"\n=== Training for {args.num_epochs} epochs ===")
-        best_f1 = 0.0
+        # Standard training loop (BCE only)
+        print(f"\n=== Standard Training (BCE Loss) ===")
+        print(f"Training for {args.num_epochs} epochs...")
+        
         training_history = {'train_loss': [], 'epochs': []}
         
         for epoch in range(args.num_epochs):
             print(f"\nEpoch {epoch + 1}/{args.num_epochs}")
             
-            # Train
+            # Train with BCE loss
             train_loss = train_epoch(model, train_loader, criterion, optimizer, scheduler, device)
             print(f"Train loss: {train_loss:.4f}")
             
