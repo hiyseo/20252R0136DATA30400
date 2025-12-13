@@ -1,325 +1,258 @@
-# Hierarchical Multi-Label Product Classification
+# Amazon 상품 계층 분류 (Hierarchical Product Classification)
 
-**Student ID:** 20252R0136  
-**Course:** DATA304 - Machine Learning Applications  
-**Project:** Amazon Products Hierarchical Classification with Self-Training
+**학번:** 20252R0136 | **과목:** DATA304
 
 ---
 
-## 📋 Overview
+## 📋 개요
 
-This project implements a **2-stage hierarchical multi-label classification system** for Amazon product taxonomy:
-1. **Stage 1**: Supervised learning with silver labels using BCE loss
-2. **Stage 2**: Self-training with soft pseudo-labels using KL Divergence loss
+Amazon 상품을 531개 클래스로 자동 분류하는 시스템입니다.
 
-**Key Features:**
-- Hybrid top-down silver label generation (keyword + semantic + hierarchy filtering)
-- BERT-based encoder with 531-class multi-label classifier
-- Soft pseudo-label self-training for semi-supervised learning
-- DAG-structured taxonomy with 3 levels (root, mid, leaf)
+**방법**: Silver Label 생성 → BCE 학습 → Self-Training (KLD)  
+**특징**: 레이블 없이도 높은 성능 달성
 
 ---
 
-## 📂 Project Structure
+## 📁 프로젝트 구조
 
 ```
 data304_final/
-├── config/
-│   └── config.yaml                          # Centralized configuration
-├── data/
-│   ├── raw/
-│   │   └── Amazon_products/                 # Original dataset
-│   │       ├── train/train_corpus.txt       # 29,487 samples
-│   │       ├── test/test_corpus.txt         # 19,658 samples
-│   │       ├── classes.txt                  # 531 classes
-│   │       ├── class_hierarchy.txt          # DAG structure
-│   │       └── class_related_keywords.txt   # Keywords per class
-│   ├── intermediate/                        # Generated files
-│   │   ├── train_silver_labels.pkl          # Silver labels (70% coverage)
-│   │   └── test_silver_labels.pkl           # For pseudo-labeling
-│   └── output/                              # Processed outputs
-├── src/
-│   ├── data_preprocessing.py                # Data loader
-│   ├── models/
-│   │   ├── encoder.py                       # BERT encoder
-│   │   ├── classifier.py                    # Multi-label classifier
-│   │   └── gnn_classifier.py                # GNN models (GCN, GAT)
-│   ├── training/
-│   │   ├── train_baseline.py                # Main training script
-│   │   ├── self_training.py                 # Self-training with soft labels
-│   │   └── loss_functions.py                # BCE, Focal, Asymmetric, KLD
-│   ├── inference/
-│   │   ├── predict.py                       # Generate predictions
-│   │   └── dummy_baseline.py                # Simple baseline
-│   ├── silver_labeling/
-│   │   ├── generate_silver_labels.py        # Hybrid top-down approach
-│   │   ├── graph_utils.py                   # Hierarchy analysis
-│   │   └── llm_keyword_expansion.py         # LLM-based expansion
-│   └── utils/
-│       ├── logger.py                        # Logging utilities
-│       ├── metrics.py                       # Evaluation metrics
-│       ├── seed.py                          # Random seed control
-│       └── taxonomy_mapping.py              # Hierarchy utilities
-├── scripts/
-│   ├── generate_labels.py                   # Generate silver labels
-│   ├── train_with_config.py                 # Config-based training
-│   └── generate_submission.py               # Create Kaggle submission
-├── notebooks/
-│   ├── EDA.ipynb                            # Exploratory data analysis
-│   ├── Ablation_Analysis.ipynb              # Experiment results
-│   └── CaseStudy.ipynb                      # Error analysis
-├── models/                                  # Trained models
-│   └── baseline/
-│       ├── best_model.pt                    # Final model weights
-│       └── training_history.json            # Loss curves
-├── results/                                 # Predictions and visualizations
-│   ├── predictions/
-│   │   └── baseline_YYYYMMDD_HHMMSS.csv    # Predictions
-│   ├── submissions/
-│   │   └── 20252R0136_baseline.csv          # Kaggle submission
-│   └── images/                              # Visualizations
-├── logs/                                    # Training logs
-├── docs/                                    # Documentation
-│   ├── CONFIG.md                            # Configuration guide
-│   ├── PIPELINE.md                          # Complete pipeline guide
-│   └── METHODOLOGY.md                       # Detailed methodology
-├── requirements.txt                         # Python dependencies
-├── run.sh                                   # Quick start script
-└── README.md                                # This file
+├── config/                      # 설정 파일
+│   └── config.yaml             # 통합 실험 설정
+│
+├── data/                        # 데이터 디렉토리
+│   ├── raw/                    # 원본 데이터 (Amazon Products)
+│   │   └── Amazon_products/    # Amazon 상품 데이터셋
+│   │       ├── train/          # 학습 데이터 (corpus)
+│   │       ├── test/           # 테스트 데이터 (corpus)
+│   │       ├── classes.txt     # 531개 클래스 목록
+│   │       ├── class_hierarchy.txt  # 계층 구조 (parent-child)
+│   │       └── class_related_keywords.txt  # 클래스별 키워드
+│   ├── intermediate/           # 중간 처리 결과
+│   │   ├── train_silver_labels.pkl  # 학습 데이터 Silver label
+│   │   └── test_silver_labels.pkl   # 테스트 데이터 Silver label
+│   └── output/                 # 최종 출력 (예측 결과)
+│
+├── src/                         # 소스 코드
+│   ├── data_preprocessing.py   # 데이터 전처리
+│   ├── models/                 # 모델 정의
+│   │   ├── classifier.py       # BERT 기반 분류기
+│   │   ├── encoder.py          # BERT 인코더
+│   │   └── gnn_classifier.py   # GNN 모델 (Graph Neural Network)
+│   ├── silver_labeling/        # Silver label 생성
+│   │   ├── generate_silver_labels.py  # 메인 실행 파일
+│   │   ├── graph_utils.py      # 계층 그래프 처리
+│   │   └── llm_keyword_expansion.py  # LLM 키워드 확장 (선택)
+│   ├── training/               # 학습 로직
+│   │   ├── train_baseline.py   # 2단계 학습 (BCE → Self-Training)
+│   │   ├── self_training.py    # Self-training 구현
+│   │   └── loss_functions.py   # 손실 함수 (BCE, KLD, Focal)
+│   ├── inference/              # 예측 생성
+│   │   ├── predict.py          # 모델 예측
+│   │   └── dummy_baseline.py   # 더미 베이스라인
+│   └── utils/                  # 유틸리티
+│       ├── metrics.py          # 평가 지표 (F1, Precision, Recall)
+│       ├── taxonomy_mapping.py # 계층 매핑
+│       ├── logger.py           # 로깅
+│       └── seed.py             # 랜덤 시드 고정
+│
+├── scripts/                     # 실행 스크립트
+│   ├── generate_labels.py      # Silver label 생성 실행
+│   ├── train_with_config.py    # Config 기반 학습 실행
+│   └── generate_submission.py  # 제출 파일 생성
+│
+├── notebooks/                   # Jupyter Notebook 분석
+│   ├── EDA.ipynb               # 데이터 탐색 및 시각화
+│   ├── Ablation_Analysis.ipynb # 실험 결과 비교
+│   └── CaseStudy.ipynb         # 예측 오류 분석
+│
+├── docs/                        # 문서
+│   ├── CONFIG.md               # Config 상세 설명
+│   ├── PIPELINE.md             # 파이프라인 실행 가이드
+│   └── METHODOLOGY.md          # 방법론 및 수식
+│
+├── models/                      # 학습된 모델 (자동 생성)
+│   └── {model_type}/           # 실험별 폴더
+│       ├── best_model.pt       # 최종 모델
+│       ├── training_history.json  # 학습 기록
+│       └── checkpoint_*.pt     # 중간 체크포인트
+│
+├── results/                     # 결과 파일 (자동 생성)
+│   ├── predictions/            # 예측 결과 (pkl, csv)
+│   ├── submissions/            # 제출 파일
+│   └── images/                 # 시각화 이미지
+│
+├── logs/                        # 로그 파일 (자동 생성)
+│
+├── run.sh                       # 전체 파이프라인 자동 실행 스크립트
+├── requirements.txt             # Python 패키지 의존성
+└── README.md                    # 프로젝트 설명서
 ```
+
+**핵심 디렉토리:**
+- `src/`: 모든 소스 코드 (모델, 학습, 추론)
+- `config/`: 실험 설정 (단일 YAML 파일)
+- `data/`: 원본 → 중간 → 최종 데이터 흐름
+- `scripts/`: 실행 진입점 (config 기반)
+- `models/`: 학습된 모델 저장
+- `results/`: 예측 및 제출 파일
 
 ---
 
-## 🚀 Quick Start
+## 🚀 빠른 시작
 
-### 1. Environment Setup
+### 1. 환경 설정
 
 ```bash
-# Create virtual environment
+# 가상환경 생성 및 활성화
 python3 -m venv data304
-source data304/bin/activate  # On macOS/Linux
-# data304\Scripts\activate   # On Windows
+source data304/bin/activate
 
-# Install dependencies
+# 패키지 설치
 pip install -r requirements.txt
 ```
 
-**Dependencies:**
-- Python 3.10+
-- PyTorch 2.0+
-- Transformers 4.30+
-- sentence-transformers
-- NetworkX 3.0+
-- scikit-learn, pandas, numpy
+**필요**: Python 3.10+, 16GB RAM, 10GB 저장공간
 
-### 2. Data Preprocessing (Already Done)
+### 2. 전체 실행 (한 번에)
 
 ```bash
+# 실행 권한 부여 (최초 1회)
+chmod +x run.sh
+
+# 전체 파이프라인 자동 실행
+./run.sh
+```
+
+**소요 시간**: CPU 12-16시간, GPU 3-4시간
+
+### 3. 단계별 실행 (선택)
+
+```bash
+# 1. 데이터 전처리
 python3 src/data_preprocessing.py
-```
 
-**Output:**
-```
-✓ Loaded 29,487 training samples
-✓ Loaded 19,658 test samples
-✓ 531 classes in 3-level DAG hierarchy
-✓ 6 root nodes, 25 multi-parent nodes
-```
-
-### 3. Generate Silver Labels
-
-```bash
+# 2. Silver Label 생성 (30-45분)
 python3 scripts/generate_labels.py
-```
 
-**Method:** Hybrid top-down approach
-- **Score**: `0.3 × keyword_matching + 0.7 × semantic_similarity`
-- **Filtering**: Level-by-level hierarchy filtering (root → mid → leaf)
-- **Thresholds**: τ₀=0.105, τ₁=0.15, τ₂=0.1
-
-**Output:**
-```
-data/intermediate/
-├── train_silver_labels.pkl    # 70% coverage, 3.25 labels/sample
-└── test_silver_labels.pkl     # For pseudo-labeling
-```
-
-### 4. Train Baseline Model
-
-```bash
-# Config-based training (recommended)
+# 3. 모델 학습 (Stage 1: BCE → Stage 2: Self-Training)
 python3 scripts/train_with_config.py
 
-# Or direct command
-python3 src/training/train_baseline.py \
-  --model_type baseline \
-  --num_epochs 2 \
-  --use_self_training
-```
-
-**Training Process:**
-```
-Stage 1: BCE Initialization (2 epochs)
-  └─ Train on silver labels with BCE loss
-  └─ Purpose: Initialize model for pseudo-labeling
-
-Stage 2: Self-Training (3 iterations)
-  └─ Generate soft pseudo-labels (confidence ≥ 0.7)
-  └─ Train with KLD loss on labeled + pseudo-labeled data
-  └─ Purpose: Refine model with unlabeled data
-```
-
-**Expected time:** 3-4 hours on V100 GPU
-
-**Output:**
-```
-models/baseline/
-├── best_model.pt              # Final trained model
-├── training_history.json      # Loss curves
-└── checkpoint_epoch_*.pt      # Intermediate checkpoints
-```
-
-### 5. Generate Predictions
-
-```bash
+# 4. 예측 생성
 python3 src/inference/predict.py \
   --model_path models/baseline/best_model.pt \
   --model_name baseline
-```
 
-**Output:**
-```
-results/predictions/
-├── baseline_20251213_143022.pkl    # For analysis
-└── baseline_20251213_143022.csv    # For submission
-```
-
-### 6. Create Submission
-
-```bash
+# 5. 제출 파일 생성
 python3 scripts/generate_submission.py \
   --predictions results/predictions/baseline_*.csv \
   --output results/submissions/20252R0136_baseline.csv
 ```
 
-**Format:**
-```csv
-20252R0136,pid
-20252R0136,50 125 328
-20252R0136,12 89 245 401
-...
-```
+**최종 출력**: `results/submissions/20252R0136_baseline.csv` (제출용)
 
 ---
 
-## 📊 Baseline Methodology
+## 🖥️ 실행 환경
 
-### Stage 0: Silver Label Generation
-
-**Mathematical Formulation:**
-
-$$s(x_i, c_j) = 0.3 \cdot \frac{|\text{tokens}(x_i) \cap K_{c_j}|}{|K_{c_j}|} + 0.7 \cdot \cos(\phi(x_i), \phi(c_j))$$
-
-where:
-- $\phi(\cdot)$ = sentence-transformers embedding (all-mpnet-base-v2)
-- $K_{c_j}$ = keywords for class $c_j$
-
-**Top-Down Filtering:**
-```
-For each level ℓ ∈ {0, 1, 2}:
-  1. Select: Selected_ℓ = {c : s(x, c) ≥ τ_ℓ}
-  2. Allow children: Allowed_{ℓ+1} = {c : parent(c) ∈ Selected_ℓ}
-```
-
-### Stage 1: Supervised Learning (BCE)
-
-**Loss Function:**
-
-$$L_{\text{BCE}}(x, y) = -\frac{1}{k}\sum_{j=1}^{k} [y_j \log p_j + (1-y_j) \log(1-p_j)]$$
-
-where $y \in \{0, 1\}^k$ are binary silver labels.
-
-### Stage 2: Self-Training (KLD)
-
-**Pseudo-Label Generation:**
-
-$$\tilde{p} = \sigma(f_\theta(x)) \quad \text{if} \quad \max(\tilde{p}) \geq 0.7$$
-
-**Loss Function:**
-
-$$L_{\text{KLD}}(x, \tilde{p}) = \frac{1}{k}\sum_{j=1}^{k} \tilde{p}_j \log\frac{\tilde{p}_j}{p_j}$$
-
-where $\tilde{p} \in [0, 1]^k$ are soft pseudo-labels.
-
-**Key Difference:**
-- BCE uses **hard labels** (0/1) → Forces binary decisions
-- KLD uses **soft labels** (0~1) → Preserves uncertainty
-
----
-
-## ⚙️ Configuration
-
-Edit `config/config.yaml` to change settings:
+### 로컬 (CPU/GPU)
 
 ```yaml
-model:
-  model_type: "baseline"          # Experiment identifier
-  model_name: "bert-base-uncased"
-
+# config/config.yaml
+misc:
+  device: "auto"  # 또는 "cpu", "cuda", "mps"
+  
 training:
-  batch_size: 16
-  num_epochs: 2                   # Stage 1 initialization
-  learning_rate: 2.0e-5
-  loss_type: "bce"                # Stage 1: BCE, Stage 2: KLD (auto)
-
-self_training:
-  enabled: true                   # Enable 2-stage training
-  confidence_threshold: 0.7
-  max_iterations: 3
-
-output:
-  output_dir: "models/{model_type}"  # Auto-resolved placeholder
+  batch_size: 16  # CPU는 8, GPU는 32
 ```
 
-See `docs/CONFIG.md` for detailed configuration guide.
+**예상 시간**: CPU 12-16시간, GPU 3-6시간
 
 ---
 
-## 📈 Performance
+## ⚙️ Config 설정
 
-### Silver Label Statistics
-- **Coverage**: 70.0% (20,640/29,487 training samples)
-- **Avg labels/sample**: 3.25
-- **Class usage**: 445/531 (83.8%)
+`config/config.yaml` 파일 수정으로 실험 설정:
 
-### Model Architecture
-- **Encoder**: BERT-base-uncased (109.9M parameters)
-- **Classifier**: Linear(768 → 531)
-- **Total parameters**: ~110M
+### 주요 옵션
 
-### Expected Training Performance
-- **Stage 1 BCE loss**: 0.60-0.65
-- **Stage 2 KLD loss**: 0.35-0.40
-- **Pseudo-label coverage**: 75-85% of test set
-
----
-
-## 🛠️ Advanced Usage
-
-### Ablation Studies
-
-**Experiment 1: No Self-Training**
 ```yaml
-# config.yaml
+# 모델 설정
 model:
-  model_type: "no_self_training"
+  model_name: "bert-base-uncased"  # 사전학습 모델
+    # 옵션: "bert-base-uncased", "roberta-base", "distilbert-base-uncased"
+  model_type: "baseline"  # 실험 이름 (출력 폴더명으로 사용)
+    # 예시: "baseline", "focal_loss", "gcn", "gat", "no_self_training"
+  dropout: 0.1  # Dropout 비율 (과적합 방지)
+
+# 학습 설정
+training:
+  batch_size: 16  # 배치 크기 (GPU 메모리에 따라 조정)
+    # CPU: 4-8, GPU (8GB): 16, GPU (16GB+): 32
+  num_epochs: 2  # Stage 1 초기 학습 에포크
+  learning_rate: 2.0e-5  # 학습률
+  loss_type: "bce"  # 손실 함수
+    # 옵션: "bce" (Binary Cross Entropy), "focal" (Focal Loss)
+  
+  # Focal Loss 설정 (loss_type: "focal"일 때)
+  focal_alpha: 0.25  # 클래스 불균형 보정
+  focal_gamma: 2.0   # 쉬운 샘플 가중치 감소
+
+# Self-Training 설정
+self_training:
+  enabled: true  # Self-training 활성화
+    # true: BCE (Stage 1) → KLD (Stage 2)
+    # false: BCE만 사용
+  confidence_threshold: 0.7  # Pseudo-label 신뢰도 임계값
+    # 높을수록 엄격 (0.6-0.9 권장)
+  max_iterations: 3  # Self-training 반복 횟수
+
+# 데이터 설정
+data:
+  max_length: 128  # 텍스트 최대 토큰 길이
+    # 메모리 부족 시: 64, 긴 텍스트: 256
+  num_workers: 4  # 데이터 로딩 병렬 처리 수
+
+# 환경 설정
+misc:
+  device: "auto"  # 디바이스 자동 선택
+    # 옵션: "auto", "cpu", "cuda" (NVIDIA GPU), "mps" (Apple Silicon)
+  seed: 42  # 재현성을 위한 랜덤 시드
+  mixed_precision: true  # 혼합 정밀도 학습 (GPU 속도 향상)
+```
+
+### 실험 시나리오별 설정
+
+**빠른 테스트 (5-10분)**
+```yaml
+training:
+  num_epochs: 1
+  batch_size: 8
 self_training:
   enabled: false
-training:
-  num_epochs: 5
 ```
 
-**Experiment 2: Focal Loss**
+**메모리 부족 시**
+```yaml
+data:
+  max_length: 64
+  batch_size: 4
+misc:
+  mixed_precision: true
+```
+
+**고성능 GPU (긴 학습)**
+```yaml
+training:
+  num_epochs: 5
+  batch_size: 32
+data:
+  max_length: 256
+self_training:
+  max_iterations: 5
+```
+
+**Focal Loss 실험**
 ```yaml
 model:
   model_type: "focal_loss"
@@ -331,75 +264,59 @@ self_training:
   enabled: false
 ```
 
-### AWS SageMaker Deployment
+**상세 설명**: `docs/CONFIG.md` 참조
+
+---
+
+## 🔑 LLM API 설정 (선택사항)
+
+키워드 확장을 위한 OpenAI API 설정 (선택):
 
 ```bash
-# SSH to SageMaker instance
-ssh -i your-key.pem ubuntu@your-instance
+# 1. API 키 발급: https://platform.openai.com/
+# 2. 환경 변수 설정
+echo "OPENAI_API_KEY=sk-proj-..." > .env
 
-# Clone and setup
-git clone https://github.com/hiyseo/20252R0136DATA30400.git
-cd 20252R0136DATA30400
-source data304/bin/activate
-
-# Run pipeline
-python3 scripts/generate_labels.py
-python3 scripts/train_with_config.py
-python3 src/inference/predict.py \
-  --model_path models/baseline/best_model.pt \
-  --model_name baseline
-```
-
----
-
-## 📚 Documentation
-
-- **`docs/CONFIG.md`**: Configuration parameters and examples
-- **`docs/PIPELINE.md`**: Complete step-by-step pipeline guide
-- **`docs/METHODOLOGY.md`**: Detailed methodology and mathematical formulation
-
----
-
-## 🔍 Analysis
-
-Run Jupyter notebooks for detailed analysis:
-
-```bash
-jupyter notebook notebooks/EDA.ipynb              # Dataset exploration
-jupyter notebook notebooks/Ablation_Analysis.ipynb  # Experiment comparison
-jupyter notebook notebooks/CaseStudy.ipynb         # Error analysis
-```
-
----
-
-## 🐛 Troubleshooting
-
-### CUDA Out of Memory
-```yaml
-# config.yaml
-training:
-  batch_size: 8  # Reduce from 16
-data:
-  max_length: 64  # Reduce from 128
-```
-
-### Training Too Slow
-```yaml
-training:
-  num_epochs: 2  # Reduce epochs
-self_training:
-  max_iterations: 2  # Reduce iterations
-```
-
-### Low Coverage
-```yaml
+# 3. Config 활성화
+# config/config.yaml
 silver_labeling:
-  topdown_threshold: 0.1  # Lower threshold (was 0.15)
-  min_confidence: 0.05    # Lower confidence (was 0.1)
+  llm_expansion:
+    enabled: true
+    model: "gpt-4o-mini"
+    max_calls: 1000  # 비용 제한
+
+# 4. 실행
+python3 src/silver_labeling/llm_keyword_expansion.py
 ```
+
+**비용**: 100-200 클래스 확장 시 $2-5  
+**선택사항**: 없어도 정상 작동 (기본 키워드로도 충분)
 
 ---
 
-## ⚖️ License
+## 📊 방법론
 
-This project is for academic purposes only (DATA304 Course Project).
+### 3단계 파이프라인
+
+1. **Silver Label 생성**: 키워드 매칭(30%) + 임베딩 유사도(70%)
+2. **Stage 1 (BCE)**: Hard label로 초기 학습 (2 epochs)
+3. **Stage 2 (KLD)**: Soft pseudo-label로 self-training (3 iterations)
+
+---
+
+## 🔬 실험 및 분석
+
+Ablation study를 위한 Jupyter Notebook 제공:
+
+```bash
+jupyter notebook notebooks/Ablation_Analysis.ipynb  # 실험 비교
+jupyter notebook notebooks/CaseStudy.ipynb          # 예측 분석
+jupyter notebook notebooks/EDA.ipynb                # 데이터 탐색
+```
+
+**실험 예시**:
+- Self-training 효과: `self_training.enabled: false`
+- 임계값 변경: `confidence_threshold: 0.8`
+- Loss 함수 비교: `loss_type: "focal"`
+
+---
