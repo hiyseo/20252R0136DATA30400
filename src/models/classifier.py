@@ -1,7 +1,3 @@
-"""
-Multi-label classifier with hierarchical constraints.
-"""
-
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -12,20 +8,12 @@ import numpy as np
 class MultiLabelClassifier(nn.Module):
     """Simple multi-label classifier."""
     
-    def __init__(self, input_size: int, num_classes: int, 
+    def __init__(self, 
+                 input_size: int, num_classes: int, 
                  hidden_sizes: list = [512, 256],
                  dropout: float = 0.3):
-        """
-        Initialize classifier.
-        
-        Args:
-            input_size: Input feature dimension
-            num_classes: Number of output classes
-            hidden_sizes: Hidden layer sizes
-            dropout: Dropout rate
-        """
+
         super().__init__()
-        
         layers = []
         prev_size = input_size
         
@@ -40,15 +28,6 @@ class MultiLabelClassifier(nn.Module):
         self.network = nn.Sequential(*layers)
     
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
-        
-        Args:
-            x: Input features (batch_size, input_size)
-            
-        Returns:
-            Logits (batch_size, num_classes)
-        """
         return self.network(x)
 
 
@@ -58,15 +37,6 @@ class HierarchicalClassifier(nn.Module):
     def __init__(self, input_size: int, num_classes: int,
                  hierarchy_matrix: Optional[np.ndarray] = None,
                  dropout: float = 0.3):
-        """
-        Initialize hierarchical classifier.
-        
-        Args:
-            input_size: Input feature dimension
-            num_classes: Number of output classes
-            hierarchy_matrix: Binary matrix indicating parent-child relations
-            dropout: Dropout rate
-        """
         super().__init__()
         
         self.num_classes = num_classes
@@ -94,15 +64,6 @@ class HierarchicalClassifier(nn.Module):
         self.classifier = nn.Linear(256, num_classes)
         
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        """
-        Forward pass.
-        
-        Args:
-            x: Input features (batch_size, input_size)
-            
-        Returns:
-            Logits (batch_size, num_classes)
-        """
         features = self.feature_extractor(x)
         logits = self.classifier(features)
         
@@ -110,16 +71,6 @@ class HierarchicalClassifier(nn.Module):
     
     def predict_with_hierarchy(self, x: torch.Tensor, 
                                threshold: float = 0.5) -> torch.Tensor:
-        """
-        Predict with hierarchical constraint enforcement.
-        
-        Args:
-            x: Input features (batch_size, input_size)
-            threshold: Probability threshold
-            
-        Returns:
-            Binary predictions (batch_size, num_classes)
-        """
         logits = self.forward(x)
         probs = torch.sigmoid(logits)
         
@@ -137,16 +88,6 @@ class HierarchicalClassifier(nn.Module):
 
 
 def create_hierarchy_matrix(hierarchy, num_classes: int) -> np.ndarray:
-    """
-    Create ancestor matrix from hierarchy graph.
-    
-    Args:
-        hierarchy: NetworkX DiGraph
-        num_classes: Number of classes
-        
-    Returns:
-        Binary matrix where [i,j]=1 if i is ancestor of j
-    """
     import networkx as nx
     
     matrix = np.zeros((num_classes, num_classes), dtype=np.float32)

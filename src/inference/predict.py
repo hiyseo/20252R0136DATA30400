@@ -10,7 +10,7 @@ import pickle
 from pathlib import Path
 import torch
 import torch.nn.functional as F
-from torch.utils.data import DataLoader
+from torch.utils.data import DataLoader as TorchDataLoader
 from tqdm import tqdm
 import numpy as np
 
@@ -18,101 +18,105 @@ import numpy as np
 project_root = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(project_root))
 
-from src.data_preprocessing import DataLoader as HierarchicalDataLoader
+from src.data_preprocessing import DataLoader
+from src.dataset import ProductReviewDataset
 from src.models.encoder import TextEncoder
-from src.models.classifier import MultiLabelClassifier
 from src.models.gnn_classifier import GCNClassifier, GATClassifier, build_adjacency_matrix
 from src.utils.logger import setup_logger
 
 logger = setup_logger("Inference")
 
 
-def load_model(checkpoint_path: str, data_loader: HierarchicalDataLoader, device: torch.device):
+def load_model(checkpoint_path: str, num_classes: int, hierarchy_graph=None, device: torch.device = None):
     """
     Load trained model from checkpoint.
     
     Args:
-        checkpoint_path: Path to model checkpoint (.pth file)
-        data_loader: Data loader with class information
+        checkpoint_path: Path to model checkpoint (.pth or .pt file)
+        num_classes: Number of classes
+        hierarchy_graph: Hierarchy graph (for GNN models)
         device: Device to load model on
         
     Returns:
         model: Loaded model
-        model_type: Type of model (bert/gcn/gat)
+        config: Model configuration
     """
+    if device is None:
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    
+    logger.info(f"Loading model from {checkpoint_path}")
     checkpoint = torch.load(checkpoint_path, map_location=device)
     
     # Get model configuration
     config = checkpoint.get('config', {})
-    model_type = config.get('model_type', 'bert')
-    num_classes = data_loader.num_classes
+    if 'model' in config:
+        model_config = config['model']
+        model_type = model_config.get('model_type', 'bert')
+        model_name = model_config.get('model_name', 'bert-base-uncased')
+        dropout = model_config.get('dropout', 0.1)
+    else:
+        # Fallback for older checkpoints
+        model_type = config.get('model_type', 'bert')
+        model_name = config.get('model_name', 'bert-base-uncased')
+        dropout = config.get('dropout', 0.1)
     
-    logger.info(f"Loading {model_type.upper()} model from {checkpoint_path}")
+    logger.info(f"Model type: {model_type.upper()}")
     
-    # Initialize encoder
-    model_name = config.get('model_name', 'bert-base-uncased')
-    dropout = config.get('dropout', 0.1)
-    encoder = TextEncoder(model_name=model_name, num_classes=num_classes, dropout=dropout)
-    
-    # Initialize classifier based on type
+    # Initialize model based on type
     if model_type == 'gcn':
-        # Build adjacency matrix
-        hierarchy_graph = data_loader.load_hierarchy()
+        if hierarchy_graph is None:
+            raise ValueError("Hierarchy graph required for GCN model")
+        
         adj_matrix = build_adjacency_matrix(hierarchy_graph, num_classes, self_loop=True)
+        encoder = TextEncoder(model_name=model_name, num_classes=num_classes, dropout=dropout)
         
         model = GCNClassifier(
             text_encoder=encoder,
             num_classes=num_classes,
-            hidden_dim=config.get('gnn_hidden_dim', 512),
-            num_gcn_layers=config.get('gnn_num_layers', 2),
+            hidden_dim=config.get('model', {}).get('gnn_hidden_dim', 512),
+            num_gcn_layers=config.get('model', {}).get('gnn_num_layers', 2),
             dropout=dropout,
             adjacency_matrix=adj_matrix
         )
     elif model_type == 'gat':
-        # Build adjacency matrix
-        hierarchy_graph = data_loader.load_hierarchy()
+        if hierarchy_graph is None:
+            raise ValueError("Hierarchy graph required for GAT model")
+        
         adj_matrix = build_adjacency_matrix(hierarchy_graph, num_classes, self_loop=True)
+        encoder = TextEncoder(model_name=model_name, num_classes=num_classes, dropout=dropout)
         
         model = GATClassifier(
             text_encoder=encoder,
             num_classes=num_classes,
-            hidden_dim=config.get('gnn_hidden_dim', 512),
-            num_gat_layers=config.get('gnn_num_layers', 2),
-            num_heads=config.get('gnn_num_heads', 4),
+            hidden_dim=config.get('model', {}).get('gnn_hidden_dim', 512),
+            num_gat_layers=config.get('model', {}).get('gnn_num_layers', 2),
+            num_heads=config.get('model', {}).get('gnn_num_heads', 4),
             dropout=dropout,
             adjacency_matrix=adj_matrix
         )
     else:  # bert
-        model = encoder  # TextEncoder already includes classifier
+        model = TextEncoder(model_name=model_name, num_classes=num_classes, dropout=dropout)
     
     # Load state dict
     model.load_state_dict(checkpoint['model_state_dict'])
     model.to(device)
     model.eval()
     
-    logger.info(f"Model loaded successfully")
-    logger.info(f"Trained for {checkpoint.get('epoch', 'unknown')} epochs")
-    logger.info(f"Best validation metric: {checkpoint.get('best_metric', 'unknown')}")
+    logger.info(f"✓ Model loaded successfully")
+    if 'epoch' in checkpoint:
+        logger.info(f"  Trained for {checkpoint['epoch']} epochs")
     
-    return model, model_type
+    return model, config
 
 
 @torch.no_grad()
 def predict(model, data_loader, device: torch.device, threshold: float = 0.5):
-    """
-    Generate predictions on dataset.
-    
-    Args:
-        model: Trained model
-        data_loader: DataLoader for test set
-        device: Device to run inference on
-        threshold: Threshold for binary classification
-        
-    Returns:
-        all_pids: List of product IDs
-        all_predictions: List of predicted class indices (multi-label)
-        all_probs: List of prediction probabilities
-    """
+
+    for batch in tqdm(data_loader, desc="Predicting"):
+        doc_ids = batch['doc_id']
+        input_ids = batch['input_ids'].to(device)
+        attention_mask = batch['attention_mask'].to(device)
+
     model.eval()
     
     all_pids = []
@@ -134,8 +138,8 @@ def predict(model, data_loader, device: torch.device, threshold: float = 0.5):
         predictions = (probs >= threshold).long()
         
         # Convert to list of class indices
-        for i in range(len(pids)):
-            pid = pids[i]
+        for i in range(len(doc_ids)):
+            doc_id = doc_ids[i].item() if torch.is_tensor(doc_ids[i]) else doc_ids[i]
             pred_classes = torch.where(predictions[i] == 1)[0].cpu().numpy().tolist()
             prob_values = probs[i].cpu().numpy()
             
@@ -143,7 +147,7 @@ def predict(model, data_loader, device: torch.device, threshold: float = 0.5):
             if len(pred_classes) == 0:
                 pred_classes = [torch.argmax(probs[i]).item()]
             
-            all_pids.append(pid)
+            all_pids.append(doc_id)
             all_predictions.append(pred_classes)
             all_probs.append(prob_values)
     
@@ -185,12 +189,16 @@ def main():
     logger.info(f"Using device: {device}")
     
     # Load data
-    logger.info(f"Loading test data from {args.data_dir}")
-    data_loader_obj = HierarchicalDataLoader(data_dir=args.data_dir)
+    logger.info(f"Loading data from {args.data_dir}")
+    data_loader_obj = DataLoader(data_dir=args.data_dir)
     data_loader_obj.load_all()
     
+    num_classes = data_loader_obj.num_classes
+    hierarchy_graph = data_loader_obj.hierarchy
+    
+    logger.info(f"Number of classes: {num_classes}")
+    
     # Create test dataset
-    from src.dataset import ProductReviewDataset
     test_dataset = ProductReviewDataset(
         corpus=data_loader_obj.test_corpus,
         labels=None,  # No labels for test set
@@ -198,18 +206,18 @@ def main():
         max_length=128
     )
     
-    test_loader = DataLoader(
+    test_loader = TorchDataLoader(
         test_dataset,
         batch_size=args.batch_size,
         shuffle=False,
-        num_workers=4,
+        num_workers=0,  # Set to 0 to avoid multiprocessing issues
         pin_memory=True if device.type == 'cuda' else False
     )
     
     logger.info(f"Test set size: {len(test_dataset)}")
     
     # Load model
-    model, model_type = load_model(args.model_path, data_loader_obj, device)
+    model, config = load_model(args.model_path, num_classes, hierarchy_graph, device)
     
     # Generate predictions
     pids, predictions, probs = predict(model, test_loader, device, args.threshold)
@@ -222,7 +230,7 @@ def main():
         'pids': pids,
         'predictions': predictions,
         'probabilities': probs,
-        'model_type': model_type,
+        'config': config,
         'threshold': args.threshold,
         'model_path': args.model_path
     }

@@ -48,6 +48,9 @@ checkpoints/*.pt
 # IDE
 .vscode/
 .idea/
+
+# Test scripts (local only)
+scripts/test/
 *.swp
 *.swo
 *~
