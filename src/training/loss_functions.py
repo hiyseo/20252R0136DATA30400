@@ -9,14 +9,26 @@ from typing import Optional
 
 
 class BCEWithLogitsLoss(nn.Module):
-    """Binary Cross Entropy loss for multi-label classification."""
+    """Binary Cross Entropy loss for multi-label classification with label smoothing."""
     
-    def __init__(self, pos_weight: Optional[torch.Tensor] = None):
+    def __init__(self, pos_weight: Optional[torch.Tensor] = None, label_smoothing: float = 0.0):
         super().__init__()
-        self.loss_fn = nn.BCEWithLogitsLoss(pos_weight=pos_weight)
+        self.pos_weight = pos_weight
+        self.label_smoothing = label_smoothing
     
     def forward(self, logits: torch.Tensor, targets: torch.Tensor) -> torch.Tensor:
-        return self.loss_fn(logits, targets)
+        # Apply label smoothing to prevent model collapse
+        if self.label_smoothing > 0:
+            targets = targets * (1 - self.label_smoothing) + 0.5 * self.label_smoothing
+        
+        if self.pos_weight is not None:
+            loss = F.binary_cross_entropy_with_logits(
+                logits, targets, pos_weight=self.pos_weight
+            )
+        else:
+            loss = F.binary_cross_entropy_with_logits(logits, targets)
+        
+        return loss
 
 
 class FocalLoss(nn.Module):

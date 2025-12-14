@@ -115,18 +115,6 @@ class SelfTrainer:
             max_probs = probs.max(dim=1)[0]
             has_confident = max_probs >= self.confidence_threshold
             
-            # Debug logging (first batch only)
-            if len(all_input_ids) == 0:
-                print(f"\n[Debug] First batch statistics:")
-                print(f"  Model predictions - min: {torch.sigmoid(logits).min():.4f}, max: {torch.sigmoid(logits).max():.4f}, mean: {torch.sigmoid(logits).mean():.4f}")
-                if has_silver_labels:
-                    print(f"  Silver confidences - min: {silver_confidences.min():.4f}, max: {silver_confidences.max():.4f}, mean: {silver_confidences.mean():.4f}")
-                print(f"  Final probs - min: {probs.min():.4f}, max: {probs.max():.4f}, mean: {probs.mean():.4f}")
-                print(f"  Max probs per sample - min: {max_probs.min():.4f}, max: {max_probs.max():.4f}, mean: {max_probs.mean():.4f}")
-                print(f"  Threshold: {self.confidence_threshold}")
-                print(f"  Samples above threshold: {has_confident.sum().item()}/{len(has_confident)}")
-                print(f"  Silver weight: {silver_weight}, Blend enabled: {blend_with_silver}")
-            
             if has_confident.any():
                 all_input_ids.append(input_ids[has_confident].cpu())
                 all_attention_masks.append(attention_mask[has_confident].cpu())

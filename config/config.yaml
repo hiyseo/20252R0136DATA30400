@@ -16,9 +16,9 @@ silver_labeling:
   use_topdown_filtering: true  # Use hybrid top-down filtering
   keyword_weight: 0.3  # Weight for keyword matching score
   similarity_weight: 0.7  # Weight for semantic similarity score
-  min_confidence: 0.1  # Minimum confidence threshold for final selection
-  similarity_threshold: 0.5  # Minimum cosine similarity for semantic matching
-  topdown_threshold: 0.15  # Threshold for top-down hierarchy filtering
+  min_confidence: 0.5  # Increased from 0.1 to produce higher confidence labels
+  similarity_threshold: 0.4  # Lowered from 0.5 to be more inclusive
+  topdown_threshold: 0.10  # Lowered from 0.15 for better coverage
   batch_size: 32  # Batch size for encoding
   
   # LLM keyword expansion (optional)
@@ -44,8 +44,8 @@ model:
 
 # Self-Training (Baseline uses 2-stage training: BCE → KLD)
 self_training:
-  enabled: true  # Enable to see debug info and diagnose pseudo-label issue
-  confidence_threshold: 0.3  # Lowered to 0.3 to handle overfitting issue
+  enabled: true  # Re-enabled after confidence rescaling
+  confidence_threshold: 0.5  # Increased from 0.3 (rescaled confidences are higher)
   max_iterations: 3
   min_improvement: 0.001
   epochs_per_iteration: 1
@@ -53,14 +53,15 @@ self_training:
 # Training
 training:
   batch_size: 16
-  num_epochs: 3  # Stage 1: BCE initialization
-  learning_rate: 2.0e-5
-  weight_decay: 0.03  # Moderate regularization
+  num_epochs: 5  # Reduced to 5 since self-training is enabled
+  learning_rate: 3.0e-5  # Slightly increased to prevent collapse
+  weight_decay: 0.01  # Reduced to allow better learning
   warmup_ratio: 0.1
   gradient_clip_norm: 1.0
   
   # Loss function: bce (Stage 1), kld (Stage 2 - automatic in self-training)
   loss_type: "bce"  # 'focal', 'hierarchical', 'asymmetric'
+  label_smoothing: 0.05  # Reduced from 0.1 (confidences now higher)
   
   # For focal loss
   focal_alpha: 0.25

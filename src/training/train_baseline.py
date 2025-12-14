@@ -267,7 +267,10 @@ def train_baseline_model(args):
     print(f"Trainable parameters: {sum(p.numel() for p in model.parameters() if p.requires_grad):,}")
     
     # Loss function
-    criterion = get_loss_function(args.loss_type)
+    loss_kwargs = {}
+    if args.loss_type == 'bce' and hasattr(args, 'label_smoothing'):
+        loss_kwargs['label_smoothing'] = args.label_smoothing
+    criterion = get_loss_function(args.loss_type, **loss_kwargs)
     
     # Optimizer
     optimizer = torch.optim.AdamW(

@@ -46,6 +46,7 @@ def config_to_args(config: dict) -> argparse.Namespace:
     args.weight_decay = config['training']['weight_decay']
     args.warmup_ratio = config['training']['warmup_ratio']
     args.loss_type = config['training']['loss_type']
+    args.label_smoothing = config['training'].get('label_smoothing', 0.0)
     args.model_type = config['model']['model_type']
     
     # Self-training
