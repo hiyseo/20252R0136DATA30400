@@ -9,6 +9,7 @@ import pickle
 from pathlib import Path
 import sys
 import shutil
+import yaml
 
 # Add project root to path
 project_root = Path(__file__).resolve().parent.parent
@@ -17,6 +18,13 @@ sys.path.insert(0, str(project_root))
 from src.utils.logger import setup_logger
 
 logger = setup_logger("Submission")
+
+
+def load_config(config_path: str = 'config/config.yaml') -> dict:
+    """Load configuration from YAML file."""
+    with open(config_path, 'r') as f:
+        config = yaml.safe_load(f)
+    return config
 
 
 def generate_submission(predictions_path: str, output_path: str, student_id: str = "2020320135"):
@@ -63,22 +71,44 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Kaggle submission file")
     parser.add_argument('--predictions', type=str, required=True,
                        help='Path to predictions pickle or CSV file')
-    parser.add_argument('--output', type=str, default='results/submissions/2020320135_final.csv',
+    parser.add_argument('--output', type=str, default=None,
                        help='Path to output submission file')
-    parser.add_argument('--student_id', type=str, default='2020320135',
-                       help='Student ID for filename')
+    parser.add_argument('--student_id', type=str, default=None,
+                       help='Student ID for filename (overrides config)')
+    parser.add_argument('--config', type=str, default='config/config.yaml',
+                       help='Path to config file')
     
     args = parser.parse_args()
+    
+    # Load config
+    config = load_config(args.config)
+    
+    # Get student_id from config or args
+    student_id = args.student_id if args.student_id else config['submission']['student_id']
+    
+    # Extract model info from predictions filename for output naming
+    pred_filename = Path(args.predictions).stem  # e.g., 'pred_model_baseline_20250114_153020'
+    
+    # Set default output path if not specified
+    if args.output is None:
+        # Use prediction filename to maintain traceability
+        args.output = f'results/submissions/{student_id}_{pred_filename}.csv'
+    
+    logger.info(f"Student ID: {student_id}")
+    logger.info(f"Prediction file: {pred_filename}")
+    logger.info(f"Output: {args.output}")
     
     # Check if input is already CSV
     if args.predictions.endswith('.csv'):
         logger.info(f"Input is already CSV format: {args.predictions}")
         logger.info(f"Copying to final submission: {args.output}")
+        output_file = Path(args.output)
+        output_file.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy(args.predictions, args.output)
         logger.info(f"✓ Submission file created: {args.output}")
     else:
         # Generate from PKL
-        generate_submission(args.predictions, args.output, args.student_id)
+        generate_submission(args.predictions, args.output, student_id)
     
     logger.info("\n=== Submission Ready ===")
     logger.info(f"Upload {args.output} to Kaggle")

@@ -32,7 +32,7 @@ silver_labeling:
 # Model
 model:
   model_name: "bert-base-uncased"  # or "roberta-base", "distilbert-base-uncased"
-  model_type: "baseline"  # baseline, gcn, gat, focal_loss, etc.
+  model_type: "baseline"  # baseline, gcn, gat, focal_loss, hierarchical_loss, etc.
   num_classes: 531
   dropout: 0.1
   freeze_encoder: false
@@ -60,7 +60,7 @@ training:
   gradient_clip_norm: 1.0
   
   # Loss function: bce (Stage 1), kld (Stage 2 - automatic in self-training)
-  loss_type: "bce"
+  loss_type: "bce" # 'focal', 'hierarchical', 'asymmetric'
   
   # For focal loss
   focal_alpha: 0.25
@@ -82,6 +82,10 @@ output:
   training_dir: "results/training/{model_type}"  # Training visualization directory
   log_dir: "logs"
   save_predictions: true
+
+# Submission
+submission:
+  student_id: "2020320135"  # Student ID for submission filename
 
 # Misc
 misc:

@@ -104,7 +104,7 @@ def evaluate_model(model, dataloader, device, threshold=0.5):
     }
 
 
-def plot_evaluation_results(results, output_dir, model_type):
+def plot_evaluation_results(results, output_dir, model_type, model_filename):
     """
     Generate evaluation visualizations.
     
@@ -112,9 +112,10 @@ def plot_evaluation_results(results, output_dir, model_type):
         results: Evaluation results dictionary
         output_dir: Directory to save plots (results/evaluations/{model_type}/)
         model_type: Model type name
+        model_filename: Model filename (stem) for tracking (e.g., 'model_baseline_20250114_153020')
     """
     # Save to results/evaluation/{model_type}/ directory
-    eval_dir = Path('results/evaluations') / model_type
+    eval_dir = Path('results/evaluation') / model_type
     eval_dir.mkdir(parents=True, exist_ok=True)
     
     plt.style.use('seaborn-v0_8-darkgrid')
@@ -151,7 +152,7 @@ def plot_evaluation_results(results, output_dir, model_type):
         axes[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    conf_dist_path = eval_dir / 'confidence_distribution.png'
+    conf_dist_path = eval_dir / f'eval_{model_filename}_confidence_distribution.png'
     plt.savefig(conf_dist_path, dpi=300, bbox_inches='tight')
     print(f"✓ Confidence distribution saved: {conf_dist_path}")
     plt.close()
@@ -181,7 +182,7 @@ def plot_evaluation_results(results, output_dir, model_type):
     axes[1].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    labels_dist_path = eval_dir / 'labels_per_sample_distribution.png'
+    labels_dist_path = eval_dir / f'eval_{model_filename}_labels_per_sample_distribution.png'
     plt.savefig(labels_dist_path, dpi=300, bbox_inches='tight')
     print(f"✓ Labels distribution saved: {labels_dist_path}")
     plt.close()
@@ -206,7 +207,7 @@ def plot_evaluation_results(results, output_dir, model_type):
         ax.text(value + 0.02, i, f'{value:.4f}', va='center', fontsize=10, fontweight='bold')
     
     plt.tight_layout()
-    metrics_chart_path = eval_dir / 'evaluation_metrics.png'
+    metrics_chart_path = eval_dir / f'eval_{model_filename}_metrics.png'
     plt.savefig(metrics_chart_path, dpi=300, bbox_inches='tight')
     print(f"✓ Metrics chart saved: {metrics_chart_path}")
     plt.close()
@@ -246,7 +247,7 @@ def plot_evaluation_results(results, output_dir, model_type):
                        f'{height:.3f}', ha='center', va='bottom', fontsize=9)
     
     plt.tight_layout()
-    comparison_path = eval_dir / 'f1_precision_recall_comparison.png'
+    comparison_path = eval_dir / f'eval_{model_filename}_f1_precision_recall.png'
     plt.savefig(comparison_path, dpi=300, bbox_inches='tight')
     print(f"✓ F1/Precision/Recall comparison saved: {comparison_path}")
     plt.close()
@@ -275,7 +276,7 @@ def plot_evaluation_results(results, output_dir, model_type):
                f'{height:.4f}', ha='center', va='bottom', fontsize=11, fontweight='bold')
     
     plt.tight_layout()
-    topk_path = eval_dir / 'topk_accuracy.png'
+    topk_path = eval_dir / f'eval_{model_filename}_topk_accuracy.png'
     plt.savefig(topk_path, dpi=300, bbox_inches='tight')
     print(f"✓ Top-k accuracy saved: {topk_path}")
     plt.close()
@@ -327,7 +328,7 @@ def plot_evaluation_results(results, output_dir, model_type):
             ax2.invert_yaxis()
             
             plt.tight_layout()
-            perclass_path = eval_dir / 'per_class_performance.png'
+            perclass_path = eval_dir / f'eval_{model_filename}_per_class_performance.png'
             plt.savefig(perclass_path, dpi=300, bbox_inches='tight')
             print(f"✓ Per-class performance saved: {perclass_path}")
             plt.close()
@@ -452,7 +453,15 @@ def main():
     
     # Generate visualizations
     print(f"\n=== Generating Visualizations ===")
-    plot_evaluation_results(results, args.output_dir, args.model_type)
+    # Extract model filename (without .pt extension) for tracking
+    model_filename = Path(args.model_path).stem  # e.g., 'model_baseline_20250114_153020' or 'best_model'
+    plot_evaluation_results(results, args.output_dir, args.model_type, model_filename)
+    
+    # Also save evaluation metrics JSON with model filename
+    metrics_json_path = Path(args.output_dir) / f'eval_{model_filename}_metrics.json'
+    with open(metrics_json_path, 'w') as f:
+        json.dump(results['metrics'], f, indent=2)
+    print(f"✓ Metrics JSON saved: {metrics_json_path}")
     
     print("\n✓ Evaluation completed successfully!")
 

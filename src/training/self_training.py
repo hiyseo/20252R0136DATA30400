@@ -41,7 +41,9 @@ class SelfTrainer:
     def generate_pseudo_labels(self,
                               unlabeled_loader: DataLoader,
                               use_amp: bool = False,
-                              use_soft_labels: bool = True) -> Tuple[List, List, List]:
+                              use_soft_labels: bool = True,
+                              blend_with_silver: bool = True,
+                              silver_weight: float = 0.5) -> Tuple[List, List, List]:
         """
         Generate pseudo-labels for unlabeled data.
         
@@ -49,6 +51,8 @@ class SelfTrainer:
             unlabeled_loader: DataLoader for unlabeled data
             use_amp: Use automatic mixed precision
             use_soft_labels: Use soft probability labels instead of hard binary
+            blend_with_silver: Blend model predictions with silver labels if available
+            silver_weight: Weight for silver labels when blending (0-1)
             
         Returns:
             Tuple of (input_ids, attention_masks, pseudo_labels)
@@ -63,6 +67,9 @@ class SelfTrainer:
             input_ids = batch['input_ids'].to(self.device)
             attention_mask = batch['attention_mask'].to(self.device)
             
+            # Check if silver labels are available
+            has_silver_labels = 'labels' in batch and 'confidences' in batch
+            
             # Predict
             if use_amp:
                 from torch.cuda.amp import autocast
@@ -72,6 +79,15 @@ class SelfTrainer:
                 logits = self.model(input_ids, attention_mask)
             
             probs = torch.sigmoid(logits)
+            
+            # Blend with silver labels if available
+            if has_silver_labels and blend_with_silver:
+                silver_labels = batch['labels'].to(self.device)
+                silver_confidences = batch['confidences'].to(self.device)
+                
+                # Weighted blend: silver labels + model predictions
+                blended_probs = silver_weight * silver_labels + (1 - silver_weight) * probs
+                probs = blended_probs
             
             # Filter by confidence: at least one prediction above threshold
             max_probs = probs.max(dim=1)[0]
@@ -94,10 +110,19 @@ class SelfTrainer:
         if len(all_input_ids) == 0:
             return [], [], []
         
-        # Concatenate
+        # Concatenate with safety checks
         all_input_ids = torch.cat(all_input_ids, dim=0)
         all_attention_masks = torch.cat(all_attention_masks, dim=0)
         all_pseudo_labels = torch.cat(all_pseudo_labels, dim=0)
+        
+        # Ensure proper dtype and shapes to avoid out of range errors
+        all_input_ids = all_input_ids.long()  # Ensure int64
+        all_attention_masks = all_attention_masks.long()  # Ensure int64
+        all_pseudo_labels = all_pseudo_labels.float()  # Ensure float32
+        
+        # Clamp input_ids to valid range to prevent out of range errors
+        vocab_size = 30522  # BERT vocab size
+        all_input_ids = torch.clamp(all_input_ids, 0, vocab_size - 1)
         
         return all_input_ids, all_attention_masks, all_pseudo_labels
     
@@ -143,6 +168,11 @@ class SelfTrainer:
         all_input_ids = torch.cat(all_input_ids, dim=0)
         all_attention_masks = torch.cat(all_attention_masks, dim=0)
         all_labels = torch.cat(all_labels, dim=0)
+        
+        # Ensure proper dtype for TensorDataset
+        all_input_ids = all_input_ids.long()
+        all_attention_masks = all_attention_masks.long()
+        all_labels = all_labels.float()
         
         # Create new dataset
         dataset = TensorDataset(all_input_ids, all_attention_masks, all_labels)

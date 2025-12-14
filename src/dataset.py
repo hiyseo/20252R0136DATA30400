@@ -131,6 +131,8 @@ def create_dataloaders(train_corpus: List[Tuple[int, str]],
                       test_corpus: List[Tuple[int, str]],
                       train_labels: np.ndarray,
                       train_confidences: Optional[np.ndarray] = None,
+                      test_labels: Optional[np.ndarray] = None,
+                      test_confidences: Optional[np.ndarray] = None,
                       tokenizer_name: str = "bert-base-uncased",  # Keep default for backward compatibility
                       batch_size: int = 16,
                       max_length: int = 128,
@@ -143,6 +145,8 @@ def create_dataloaders(train_corpus: List[Tuple[int, str]],
         test_corpus: Test corpus
         train_labels: Training labels
         train_confidences: Optional training confidence scores
+        test_labels: Optional test silver labels (for self-training)
+        test_confidences: Optional test confidence scores
         tokenizer_name: Tokenizer name
         batch_size: Batch size
         max_length: Max sequence length
@@ -170,12 +174,23 @@ def create_dataloaders(train_corpus: List[Tuple[int, str]],
             max_length=max_length
         )
     
-    test_dataset = ProductReviewDataset(
-        test_corpus,
-        labels=None,
-        tokenizer_name=tokenizer_name,
-        max_length=max_length
-    )
+    # Create test dataset with silver labels if available
+    if test_labels is not None and test_confidences is not None:
+        test_dataset = SilverLabelDataset(
+            test_corpus,
+            test_labels,
+            test_confidences,
+            tokenizer_name=tokenizer_name,
+            max_length=max_length
+        )
+        print("✓ Test dataset created with silver labels")
+    else:
+        test_dataset = ProductReviewDataset(
+            test_corpus,
+            labels=None,
+            tokenizer_name=tokenizer_name,
+            max_length=max_length
+        )
     
     # Create dataloaders
     train_loader = DataLoader(

@@ -90,6 +90,9 @@ def main():
     # Convert to args
     args = config_to_args(config)
     
+    # Add student_id from config
+    args.student_id = config.get('submission', {}).get('student_id', '2020320135')
+    
     # Override with command line arguments
     if cmd_args.model_name:
         args.model_name = cmd_args.model_name

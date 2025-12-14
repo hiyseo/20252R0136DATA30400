@@ -236,12 +236,11 @@ def main():
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Generate filename with model name and timestamp
-    from datetime import datetime
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    # Extract model filename for tracking
+    model_filename = Path(args.model_path).stem  # e.g., 'model_baseline_20250114_153020' or 'best_model'
     
     # Save predictions as PKL
-    pkl_filename = f"{model_name}_{timestamp}.pkl"
+    pkl_filename = f"pred_{model_filename}.pkl"
     pkl_path = output_dir / pkl_filename
     
     results = {
@@ -252,7 +251,7 @@ def main():
         'threshold': args.threshold,
         'model_path': args.model_path,
         'model_name': model_name,
-        'timestamp': timestamp
+        'model_filename': model_filename
     }
     
     with open(pkl_path, 'wb') as f:
@@ -261,7 +260,7 @@ def main():
     logger.info(f"✓ Predictions saved to {pkl_path}")
     
     # Save as CSV (Kaggle format)
-    csv_filename = f"{model_name}_{timestamp}.csv"
+    csv_filename = f"pred_{model_filename}.csv"
     csv_path = output_dir / csv_filename
     
     with open(csv_path, 'w', encoding='utf-8') as f:

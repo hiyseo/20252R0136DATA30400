@@ -100,11 +100,16 @@ def evaluate(model, dataloader, criterion, device):
     return metrics
 
 
-def plot_training_curves(training_history, training_dir):
+def plot_training_curves(training_history, training_dir, timestamp=None):
     """Plot and save training curves."""
     # Create training results directory
     training_dir = Path(training_dir)
     training_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Generate timestamp prefix if not provided
+    if timestamp is None:
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     
     # Set style
     plt.style.use('seaborn-v0_8-darkgrid')
@@ -118,12 +123,12 @@ def plot_training_curves(training_history, training_dir):
         ax.plot(epochs, training_history['train_loss'], 'o-', linewidth=2, markersize=6, label='Training Loss')
         ax.set_xlabel('Epoch', fontsize=12)
         ax.set_ylabel('Loss', fontsize=12)
-        ax.set_title(f'Training Loss Curve - {model_type}', fontsize=14, fontweight='bold')
+        ax.set_title('Training Loss Curve', fontsize=14, fontweight='bold')
         ax.legend(fontsize=10)
         ax.grid(True, alpha=0.3)
         
         plt.tight_layout()
-        loss_curve_path = training_dir / 'training_loss_curve.png'
+        loss_curve_path = training_dir / f'training_{timestamp}_loss_curve.png'
         plt.savefig(loss_curve_path, dpi=300, bbox_inches='tight')
         print(f"✓ Training loss curve saved: {loss_curve_path}")
         plt.close()
@@ -151,7 +156,7 @@ def plot_training_curves(training_history, training_dir):
                 ax2.grid(True, alpha=0.3)
             
             plt.tight_layout()
-            self_training_path = training_dir / 'self_training_curves.png'
+            self_training_path = training_dir / f'training_{timestamp}_self_training_curves.png'
             plt.savefig(self_training_path, dpi=300, bbox_inches='tight')
             print(f"✓ Self-training curves saved: {self_training_path}")
             plt.close()
@@ -190,7 +195,7 @@ def plot_training_curves(training_history, training_dir):
                    ha='center', fontsize=10, color='gray')
         
         plt.tight_layout()
-        combined_path = training_dir / 'two_stage_training.png'
+        combined_path = training_dir / f'training_{timestamp}_two_stage.png'
         plt.savefig(combined_path, dpi=300, bbox_inches='tight')
         print(f"✓ 2-stage training plot saved: {combined_path}")
         plt.close()
@@ -221,6 +226,12 @@ def train_baseline_model(args):
         args.train_labels_path
     )
     
+    # Load test silver labels for self-training
+    print("Loading test silver labels...")
+    test_labels, test_confidences = SilverLabelGenerator.load_labels(
+        args.test_labels_path
+    )
+    
     # Create dataloaders
     print("Creating dataloaders...")
     train_loader, test_loader = create_dataloaders(
@@ -228,6 +239,8 @@ def train_baseline_model(args):
         data_loader.test_corpus,
         train_labels,
         train_confidences,
+        test_labels=test_labels,
+        test_confidences=test_confidences,
         tokenizer_name=args.model_name,
         batch_size=args.batch_size,
         max_length=args.max_length,
@@ -335,7 +348,9 @@ def train_baseline_model(args):
         
         # Generate visualizations
         print(f"\n=== Generating Visualizations ===")
-        plot_training_curves(training_history, args.training_dir)
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plot_training_curves(training_history, args.training_dir, timestamp)
         
     else:
         # Standard training loop (BCE only)
@@ -377,12 +392,23 @@ def train_baseline_model(args):
         
         # Generate visualizations
         print(f"\n=== Generating Visualizations ===")
-        plot_training_curves(training_history, args.training_dir)
+        from datetime import datetime
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        plot_training_curves(training_history, args.training_dir, timestamp)
     
-    # Save final model
-    final_model_path = Path(args.output_dir) / "best_model.pt"
-    torch.save(model.state_dict(), final_model_path)
-    print(f"\n✓ Final model saved: {final_model_path}")
+    # Save final model with timestamp
+    from datetime import datetime
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    
+    # Save with timestamp
+    timestamped_model_path = Path(args.output_dir) / f"model_{args.model_type}_{timestamp}.pt"
+    torch.save(model.state_dict(), timestamped_model_path)
+    print(f"\n✓ Model saved: {timestamped_model_path}")
+    
+    # Also save as best_model.pt (for backward compatibility)
+    best_model_path = Path(args.output_dir) / "best_model.pt"
+    torch.save(model.state_dict(), best_model_path)
+    print(f"✓ Best model link: {best_model_path}")
     
     return model
 
