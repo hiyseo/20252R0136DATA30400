@@ -16,8 +16,8 @@ silver_labeling:
   use_topdown_filtering: true  # Use hybrid top-down filtering
   keyword_weight: 0.3  # Weight for keyword matching score
   similarity_weight: 0.7  # Weight for semantic similarity score
-  min_confidence: 0.5  # Increased from 0.1 to produce higher confidence labels
-  similarity_threshold: 0.4  # Lowered from 0.5 to be more inclusive
+  min_confidence: 0.1  # Start low, will rescale later
+  similarity_threshold: 0.3  # Lowered to increase coverage
   topdown_threshold: 0.10  # Lowered from 0.15 for better coverage
   batch_size: 32  # Batch size for encoding
   
