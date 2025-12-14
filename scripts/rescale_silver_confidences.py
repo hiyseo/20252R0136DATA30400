@@ -63,6 +63,30 @@ def rescale_confidences(input_path, output_path,
 
 if __name__ == "__main__":
     import sys
+    import os
+    
+    # Check if already rescaled
+    train_path = 'data/intermediate/train_silver_labels.pkl'
+    
+    # Quick check: load and see if already rescaled
+    with open(train_path, 'rb') as f:
+        data = pickle.load(f)
+    
+    labels = data['labels']
+    confidences = data['confidences']
+    positive_mask = labels > 0
+    
+    if len(confidences[positive_mask]) > 0:
+        current_mean = confidences[positive_mask].mean()
+        
+        if current_mean > 0.4:
+            print("\n" + "="*60)
+            print("⚠️  WARNING: Labels appear to be already rescaled!")
+            print("="*60)
+            print(f"Current mean confidence: {current_mean:.4f}")
+            print("\nIf you want to rescale again, delete the current labels and regenerate.")
+            print("Skipping rescaling to prevent double-scaling.")
+            sys.exit(0)
     
     # Rescale train labels
     print("="*60)
@@ -84,3 +108,4 @@ if __name__ == "__main__":
     )
     
     print("\n✅ Rescaling complete!")
+    print("\n⚠️  Note: Do NOT run this script again unless you regenerate silver labels.")
