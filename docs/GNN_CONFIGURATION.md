@@ -261,7 +261,7 @@ misc:
 evaluation:
   save_every: 1
 output:
-  output_dir: "models/{model_type}_{loss_type}"
+  output_dir: "data/models/{model_type}_{loss_type}"
 ```
 
 4. **Log Everything:**
@@ -276,7 +276,7 @@ output:
 import json
 results = {}
 for exp in ['bert_bce', 'gcn_hier', 'gat_hier']:
-    with open(f'models/{exp}/metrics.json') as f:
+    with open(f'data/models/{exp}/metrics.json') as f:
         results[exp] = json.load(f)
 ```
 
@@ -313,7 +313,7 @@ for model in bert gcn gat; do
     python3 scripts/train_with_config.py \
         --config config/config.yaml \
         --model_type $model \
-        --output_dir models/ablation_model_${model}
+        --output_dir data/models/ablation_model_${model}
 done
 
 # Ablation study: Loss functions
@@ -321,7 +321,7 @@ for loss in bce focal hierarchical asymmetric; do
     python3 scripts/train_with_config.py \
         --config config/config.yaml \
         --loss_type $loss \
-        --output_dir models/ablation_loss_${loss}
+        --output_dir data/models/ablation_loss_${loss}
 done
 
 # Ablation study: GNN depth
@@ -330,6 +330,6 @@ for layers in 1 2 3; do
         --config config/config.yaml \
         --model_type gcn \
         --gnn_num_layers $layers \
-        --output_dir models/ablation_depth_${layers}
+        --output_dir data/models/ablation_depth_${layers}
 done
 ```

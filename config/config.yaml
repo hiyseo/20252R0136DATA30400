@@ -77,9 +77,9 @@ evaluation:
 
 # Output
 output:
-  output_dir: "models/{model_type}"  # Placeholder: will use model.model_type value
+  output_dir: "data/models/{model_type}"  # Placeholder: will use model.model_type value
   predictions_dir: "results/predictions"
-  images_dir: "results/images/{model_type}"
+  training_dir: "results/training/{model_type}"  # Training visualization directory
   log_dir: "logs"
   save_predictions: true
 

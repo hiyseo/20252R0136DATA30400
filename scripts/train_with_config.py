@@ -60,6 +60,10 @@ def config_to_args(config: dict) -> argparse.Namespace:
     output_dir = config['output']['output_dir']
     args.output_dir = output_dir.replace('{model_type}', args.model_type)
     
+    # Training dir: replace {model_type} placeholder with actual value
+    training_dir = config['output']['training_dir']
+    args.training_dir = training_dir.replace('{model_type}', args.model_type)
+    
     args.save_every = config['evaluation']['save_every']
     
     return args
@@ -113,6 +117,7 @@ def main():
     logger.info(f"Loss type: {args.loss_type}")
     logger.info(f"Self-training: {args.use_self_training}")
     logger.info(f"Output dir: {args.output_dir}")
+    logger.info(f"Training dir: {args.training_dir}")
     logger.info("="*60)
     
     # Call train_baseline_model with args

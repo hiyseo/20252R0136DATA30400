@@ -14,6 +14,11 @@ import numpy as np
 from tqdm import tqdm
 import argparse
 from pathlib import Path
+import json
+import matplotlib
+matplotlib.use('Agg')  # Non-interactive backend for server environments
+import matplotlib.pyplot as plt
+import seaborn as sns
 
 from src.data_preprocessing import DataLoader as DataPreprocessor
 from src.dataset import create_dataloaders
@@ -93,6 +98,106 @@ def evaluate(model, dataloader, criterion, device):
     metrics['loss'] = total_loss / len(dataloader)
     
     return metrics
+
+
+def plot_training_curves(training_history, training_dir):
+    """Plot and save training curves."""
+    # Create training results directory
+    training_dir = Path(training_dir)
+    training_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Set style
+    plt.style.use('seaborn-v0_8-darkgrid')
+    sns.set_palette('husl')
+    
+    # Plot training loss
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    if 'train_loss' in training_history and training_history['train_loss']:
+        epochs = training_history.get('epochs', list(range(1, len(training_history['train_loss']) + 1)))
+        ax.plot(epochs, training_history['train_loss'], 'o-', linewidth=2, markersize=6, label='Training Loss')
+        ax.set_xlabel('Epoch', fontsize=12)
+        ax.set_ylabel('Loss', fontsize=12)
+        ax.set_title(f'Training Loss Curve - {model_type}', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        loss_curve_path = training_dir / 'training_loss_curve.png'
+        plt.savefig(loss_curve_path, dpi=300, bbox_inches='tight')
+        print(f"✓ Training loss curve saved: {loss_curve_path}")
+        plt.close()
+    
+    # Plot self-training statistics if available
+    if 'self_training_stats' in training_history:
+        stats = training_history['self_training_stats']
+        
+        if 'iterations' in stats and 'losses' in stats:
+            fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
+            
+            # Self-training loss curve
+            ax1.plot(stats['iterations'], stats['losses'], 'o-', linewidth=2, markersize=6, color='#e74c3c')
+            ax1.set_xlabel('Iteration', fontsize=12)
+            ax1.set_ylabel('Loss', fontsize=12)
+            ax1.set_title('Self-Training Loss (KLD)', fontsize=14, fontweight='bold')
+            ax1.grid(True, alpha=0.3)
+            
+            # Pseudo-label statistics
+            if 'num_pseudo_labels' in stats:
+                ax2.plot(stats['iterations'], stats['num_pseudo_labels'], 's-', linewidth=2, markersize=6, color='#3498db')
+                ax2.set_xlabel('Iteration', fontsize=12)
+                ax2.set_ylabel('Number of Pseudo-labels', fontsize=12)
+                ax2.set_title('Pseudo-label Generation', fontsize=14, fontweight='bold')
+                ax2.grid(True, alpha=0.3)
+            
+            plt.tight_layout()
+            self_training_path = training_dir / 'self_training_curves.png'
+            plt.savefig(self_training_path, dpi=300, bbox_inches='tight')
+            print(f"✓ Self-training curves saved: {self_training_path}")
+            plt.close()
+    
+    # Combined plot for 2-stage training
+    if 'train_loss' in training_history and 'self_training_stats' in training_history:
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        # Stage 1: BCE
+        bce_epochs = training_history.get('epochs', [])
+        bce_losses = training_history.get('train_loss', [])
+        
+        if bce_epochs and bce_losses:
+            ax.plot(bce_epochs, bce_losses, 'o-', linewidth=2.5, markersize=7, 
+                   color='#2ecc71', label='Stage 1: BCE Loss', alpha=0.8)
+        
+        # Stage 2: Self-training
+        stats = training_history['self_training_stats']
+        if 'iterations' in stats and 'losses' in stats:
+            # Offset iterations to continue from BCE epochs
+            offset = max(bce_epochs) if bce_epochs else 0
+            st_iterations = [offset + i for i in stats['iterations']]
+            ax.plot(st_iterations, stats['losses'], 's-', linewidth=2.5, markersize=7,
+                   color='#e74c3c', label='Stage 2: Self-Training (KLD)', alpha=0.8)
+        
+        ax.set_xlabel('Training Step', fontsize=12)
+        ax.set_ylabel('Loss', fontsize=12)
+        ax.set_title('2-Stage Training: BCE → Self-Training', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=11, loc='upper right')
+        ax.grid(True, alpha=0.3)
+        
+        # Add vertical line to separate stages
+        if bce_epochs:
+            ax.axvline(x=max(bce_epochs), color='gray', linestyle='--', linewidth=1.5, alpha=0.5)
+            ax.text(max(bce_epochs), ax.get_ylim()[1] * 0.9, 'Stage Transition', 
+                   ha='center', fontsize=10, color='gray')
+        
+        plt.tight_layout()
+        combined_path = training_dir / 'two_stage_training.png'
+        plt.savefig(combined_path, dpi=300, bbox_inches='tight')
+        print(f"✓ 2-stage training plot saved: {combined_path}")
+        plt.close()
+    
+    print(f"\n{'='*60}")
+    print(f"  All training visualizations saved to: {training_dir}")
+    print(f"{'='*60}")
 
 
 def train_baseline_model(args):
@@ -222,11 +327,15 @@ def train_baseline_model(args):
         print(f"Final loss: {stats['losses'][-1]:.4f}")
         
         # Save combined training history
-        import json
         training_history['self_training_stats'] = stats
         history_path = Path(args.output_dir) / "training_history.json"
+        history_path.parent.mkdir(parents=True, exist_ok=True)
         with open(history_path, 'w') as f:
             json.dump(training_history, f, indent=2)
+        
+        # Generate visualizations
+        print(f"\n=== Generating Visualizations ===")
+        plot_training_curves(training_history, args.training_dir)
         
     else:
         # Standard training loop (BCE only)
@@ -261,10 +370,14 @@ def train_baseline_model(args):
                 print(f"✓ Checkpoint saved: {checkpoint_path}")
         
         # Save training history
-        import json
         history_path = Path(args.output_dir) / "training_history.json"
+        history_path.parent.mkdir(parents=True, exist_ok=True)
         with open(history_path, 'w') as f:
             json.dump(training_history, f, indent=2)
+        
+        # Generate visualizations
+        print(f"\n=== Generating Visualizations ===")
+        plot_training_curves(training_history, args.training_dir)
     
     # Save final model
     final_model_path = Path(args.output_dir) / "best_model.pt"
@@ -310,14 +423,20 @@ def main():
     # Misc
     parser.add_argument('--seed', type=int, default=42)
     parser.add_argument('--output_dir', type=str, default=None,
-                       help='Output directory. If not specified, defaults to models/{model_type}')
+                       help='Output directory. If not specified, defaults to data/models/{model_type}')
+    parser.add_argument('--training_dir', type=str, default=None,
+                       help='Training visualization directory. If not specified, defaults to results/training/{model_type}')
     parser.add_argument('--save_every', type=int, default=1)
     
     args = parser.parse_args()
     
     # Set output_dir based on model_type if not specified
     if args.output_dir is None:
-        args.output_dir = f'models/{args.model_type}'
+        args.output_dir = f'data/models/{args.model_type}'
+    
+    # Set training_dir based on model_type if not specified
+    if args.training_dir is None:
+        args.training_dir = f'results/training/{args.model_type}'
     
     # Train
     train_baseline_model(args)

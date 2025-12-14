@@ -19,7 +19,7 @@ from src.utils.logger import setup_logger
 logger = setup_logger("Submission")
 
 
-def generate_submission(predictions_path: str, output_path: str, student_id: str = "20252R0136"):
+def generate_submission(predictions_path: str, output_path: str, student_id: str = "2020320135"):
     """
     Generate Kaggle submission file.
     
@@ -63,9 +63,9 @@ def main():
     parser = argparse.ArgumentParser(description="Generate Kaggle submission file")
     parser.add_argument('--predictions', type=str, required=True,
                        help='Path to predictions pickle or CSV file')
-    parser.add_argument('--output', type=str, default='20252R0136_final.csv',
+    parser.add_argument('--output', type=str, default='results/submissions/2020320135_final.csv',
                        help='Path to output submission file')
-    parser.add_argument('--student_id', type=str, default='20252R0136',
+    parser.add_argument('--student_id', type=str, default='2020320135',
                        help='Student ID for filename')
     
     args = parser.parse_args()

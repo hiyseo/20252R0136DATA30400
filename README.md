@@ -16,12 +16,19 @@ Amazon 상품을 531개 클래스로 자동 분류하는 시스템입니다.
 ## 📁 프로젝트 구조
 
 **핵심 디렉토리:**
-- `src/`: 모든 소스 코드 (모델, 학습, 추론)
 - `config/`: 실험 설정 (단일 YAML 파일)
-- `data/`: 원본 → 중간 → 최종 데이터 흐름
+- `data/`: 원본 → 중간 처리 결과
+  - `raw/Amazon_products/`: 원본 데이터 (train/test corpus)
+  - `intermediate/`: 전처리 결과 (silver labels)
+  - `models/`: 학습된 모델 저장 (.pt, .json)
 - `scripts/`: 실행 진입점 (config 기반)
-- `models/`: 학습된 모델 저장
-- `results/`: 예측 및 제출 파일
+- `results/`: 모든 실험 결과 저장
+  - `training/`: 학습 시각화 (loss curves)
+  - `evaluation/`: 평가 메트릭 및 시각화
+  - `images/`: Jupyter 노트북 결과 저장 경로
+  - `predictions/`: 예측 결과 (pkl)
+  - `submissions/`: 제출 파일 (csv)
+- `src/`: 모든 소스 코드 (모델, 학습, 추론, 평가)
 
 ---
 
@@ -66,16 +73,53 @@ python3 scripts/train_with_config.py
 
 # 4. 예측 생성
 python3 src/inference/predict.py \
-  --model_path models/baseline/best_model.pt \
+  --model_path data/output/models/baseline/best_model.pt \
   --model_name baseline
 
 # 5. 제출 파일 생성
 python3 scripts/generate_submission.py \
   --predictions results/predictions/baseline_*.csv \
-  --output results/submissions/20252R0136_baseline.csv
+  --output results/submissions/2020320135_baseline.csv
 ```
 
-**최종 출력**: `results/submissions/20252R0136_baseline.csv` (제출용)
+**학습 중 자동 생성**:
+- `data/output/models/baseline/best_model.pt` - 최종 모델
+- `data/output/models/baseline/training_history.json` - 학습 기록
+- `results/training/baseline/*.png` - 학습 시각화 (loss curves)
+
+**최종 출력**: `results/submissions/2020320135_baseline.csv` (제출용)
+
+---
+
+### 4. 모델 평가 (선택)
+
+```bash
+python3 src/evaluation/evaluate_model.py \
+  --model_path data/output/models/baseline/best_model.pt \
+  --model_type baseline \
+  --save_predictions
+```
+
+**평가 데이터셋**: `data/raw/Amazon_products/test/test_corpus.txt` (실제 테스트 문서 사용)
+
+**출력 위치**: `results/evaluation/{model_type}/`
+
+**평가 메트릭** (Multi-Label Classification):
+- **Micro F1/Precision/Recall**: 전체 예측의 정확도 (클래스 빈도 가중)
+- **Macro F1/Precision/Recall**: 클래스별 평균 (클래스 불균형 무시)
+- **Samples F1**: 샘플별 F1 평균 (문서 단위 성능)
+- **Top-k Accuracy**: 상위 k개 예측 중 정답 포함 비율
+- **Exact Match Ratio**: 모든 레이블이 정확히 일치하는 비율
+- **Hamming Loss**: 전체 레이블 중 오분류 비율
+
+**생성 파일**:
+- `evaluation_metrics.json` - 상세 메트릭 (JSON)
+- `confidence_distribution.png` - 예측 신뢰도 분포
+- `labels_per_sample_distribution.png` - 샘플당 레이블 수 분포
+- `evaluation_metrics.png` - 전체 메트릭 막대 그래프
+- `f1_precision_recall_comparison.png` - F1/Precision/Recall 비교
+- `topk_accuracy.png` - Top-3/Top-5/Exact Match 정확도
+- `per_class_performance.png` - 클래스별 성능 (상위/하위 10개)
 
 ---
 

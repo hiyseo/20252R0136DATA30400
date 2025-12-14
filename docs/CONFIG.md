@@ -86,7 +86,7 @@ model:
 - GNN parameters: Used only for GNN-based models (not baseline)
 
 **Model Type 역할:**
-- 출력 디렉토리 경로 자동 생성: `models/{model_type}/`
+- 출력 디렉토리 경로 자동 생성: `data/models/{model_type}/`
 - 실험 결과 구분 및 추적
 - 로그 및 이미지 저장 경로 결정
 
@@ -94,19 +94,19 @@ model:
 ```yaml
 # 1. Baseline (2-stage training)
 model_type: "baseline"
-# → 출력: models/baseline/, results/images/baseline/
+# → 출력: data/models/baseline/, results/images/baseline/
 
 # 2. Focal loss 실험
 model_type: "focal_loss"
-# → 출력: models/focal_loss/
+# → 출력: data/models/focal_loss/
 
 # 3. Self-training 없이
 model_type: "no_self_training"
-# → 출력: models/no_self_training/
+# → 출력: data/models/no_self_training/
 
 # 4. 다른 신뢰도 임계값
 model_type: "confidence_80"
-# → 출력: models/confidence_80/
+# → 출력: data/models/confidence_80/
 ```
 
 ---
@@ -181,23 +181,32 @@ training:
 
 ```yaml
 output:
-  output_dir: "models/{model_type}"              # Placeholder replaced
-  predictions_dir: "results/predictions"
-  images_dir: "results/images/{model_type}"
-  log_dir: "logs"
+  output_dir: "data/models/{model_type}"              # Model checkpoints and training history
+  predictions_dir: "results/predictions"              # Prediction outputs (pkl, csv)
+  training_dir: "results/training/{model_type}"       # Training visualizations (loss curves)
+  log_dir: "logs"                                     # Training logs
   save_predictions: true
 ```
+
+**Directory Roles:**
+- `output_dir`: Model weights (.pt), training history (.json), checkpoints
+- `predictions_dir`: Prediction results for test set
+- `training_dir`: Automatic training visualizations (loss curves, self-training stats)
+- `log_dir`: Training logs and debug information
 
 **Placeholder System:**
 The `{model_type}` placeholder is **automatically replaced** with `model.model_type` value:
 
 ```yaml
-model_type: "baseline" → output_dir: "models/baseline"
-model_type: "focal_loss" → output_dir: "models/focal_loss"
-model_type: "gcn" → output_dir: "models/gcn"
+model_type: "baseline" → output_dir: "data/models/baseline"
+                       → training_dir: "results/training/baseline"
+model_type: "focal_loss" → output_dir: "data/models/focal_loss"
+                         → training_dir: "results/training/focal_loss"
+model_type: "gcn" → output_dir: "data/models/gcn"
+                  → training_dir: "results/training/gcn"
 ```
 
-This allows easy organization of experiments without manual path changes.
+This allows easy organization of experiments without manual path changes. All directories are **automatically created** if they don't exist.
 
 ---
 
@@ -220,7 +229,7 @@ training:
 **Result:**
 - Stage 1: 2 epochs BCE training
 - Stage 2: 3 iterations self-training with KLD
-- Output: `models/baseline/best_model.pt`
+- Output: `data/models/baseline/best_model.pt`
 
 ### Example 2: Focal Loss Experiment
 
@@ -241,7 +250,7 @@ training:
 **Result:**
 - 5 epochs standard training with Focal Loss
 - No self-training
-- Output: `models/focal_loss/best_model.pt`
+- Output: `data/models/focal_loss/best_model.pt`
 
 ### Example 3: Aggressive Self-Training
 
@@ -261,7 +270,7 @@ training:
 **Result:**
 - Stage 1: 3 epochs BCE
 - Stage 2: 5 iterations with confidence ≥ 0.5
-- Output: `models/aggressive_st/best_model.pt`
+- Output: `data/models/aggressive_st/best_model.pt`
 
 ---
 
