@@ -44,7 +44,7 @@ model:
 
 # Self-Training (Baseline uses 2-stage training: BCE → KLD)
 self_training:
-  enabled: true  # Baseline: true (BCE + Self-Training)
+  enabled: true  # Enable to see debug info and diagnose pseudo-label issue
   confidence_threshold: 0.3  # Lowered to 0.3 to handle overfitting issue
   max_iterations: 3
   min_improvement: 0.001
@@ -53,9 +53,9 @@ self_training:
 # Training
 training:
   batch_size: 16
-  num_epochs: 3  # Stage 1: BCE initialization (reduced to prevent overfitting)
+  num_epochs: 3  # Stage 1: BCE initialization
   learning_rate: 2.0e-5
-  weight_decay: 0.05  # Increased weight decay to prevent overfitting
+  weight_decay: 0.03  # Moderate regularization
   warmup_ratio: 0.1
   gradient_clip_norm: 1.0
   
