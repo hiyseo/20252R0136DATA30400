@@ -45,7 +45,7 @@ model:
 # Self-Training (Baseline uses 2-stage training: BCE → KLD)
 self_training:
   enabled: true  # Baseline: true (BCE + Self-Training)
-  confidence_threshold: 0.7
+  confidence_threshold: 0.3  # Lowered to 0.3 to handle overfitting issue
   max_iterations: 3
   min_improvement: 0.001
   epochs_per_iteration: 1
@@ -53,14 +53,14 @@ self_training:
 # Training
 training:
   batch_size: 16
-  num_epochs: 2  # Stage 1: BCE initialization (reduced to 2 for faster training)
+  num_epochs: 3  # Stage 1: BCE initialization (reduced to prevent overfitting)
   learning_rate: 2.0e-5
-  weight_decay: 0.01
+  weight_decay: 0.05  # Increased weight decay to prevent overfitting
   warmup_ratio: 0.1
   gradient_clip_norm: 1.0
   
   # Loss function: bce (Stage 1), kld (Stage 2 - automatic in self-training)
-  loss_type: "bce" # 'focal', 'hierarchical', 'asymmetric'
+  loss_type: "bce"  # 'focal', 'hierarchical', 'asymmetric'
   
   # For focal loss
   focal_alpha: 0.25

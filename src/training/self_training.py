@@ -85,8 +85,17 @@ class SelfTrainer:
                 silver_labels = batch['labels'].to(self.device)
                 silver_confidences = batch['confidences'].to(self.device)
                 
-                # Weighted blend: silver labels + model predictions
-                blended_probs = silver_weight * silver_labels + (1 - silver_weight) * probs
+                # FIXED: Use silver confidences (not binary labels) for blending
+                # Only blend where silver labels exist (non-zero)
+                silver_mask = silver_labels > 0  # Where silver labels are positive
+                
+                # Weighted blend: Use silver confidences where available, model predictions elsewhere
+                blended_probs = probs.clone()
+                blended_probs = torch.where(
+                    silver_mask,
+                    silver_weight * silver_confidences + (1 - silver_weight) * probs,
+                    probs  # Use pure model predictions where no silver label
+                )
                 probs = blended_probs
             
             # Filter by confidence: at least one prediction above threshold
