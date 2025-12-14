@@ -137,7 +137,7 @@ def plot_training_curves(training_history, training_dir, timestamp=None):
     if 'self_training_stats' in training_history:
         stats = training_history['self_training_stats']
         
-        if 'iterations' in stats and 'losses' in stats:
+        if 'iterations' in stats and 'losses' in stats and len(stats['losses']) > 0:
             fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
             
             # Self-training loss curve
@@ -148,8 +148,8 @@ def plot_training_curves(training_history, training_dir, timestamp=None):
             ax1.grid(True, alpha=0.3)
             
             # Pseudo-label statistics
-            if 'num_pseudo_labels' in stats:
-                ax2.plot(stats['iterations'], stats['num_pseudo_labels'], 's-', linewidth=2, markersize=6, color='#3498db')
+            if 'pseudo_label_counts' in stats and len(stats['pseudo_label_counts']) > 0:
+                ax2.plot(stats['iterations'], stats['pseudo_label_counts'], 's-', linewidth=2, markersize=6, color='#3498db')
                 ax2.set_xlabel('Iteration', fontsize=12)
                 ax2.set_ylabel('Number of Pseudo-labels', fontsize=12)
                 ax2.set_title('Pseudo-label Generation', fontsize=14, fontweight='bold')
@@ -160,45 +160,49 @@ def plot_training_curves(training_history, training_dir, timestamp=None):
             plt.savefig(self_training_path, dpi=300, bbox_inches='tight')
             print(f"✓ Self-training curves saved: {self_training_path}")
             plt.close()
+        else:
+            print(f"⚠ Self-training enabled but no iterations completed (no visualization generated)")
     
     # Combined plot for 2-stage training
     if 'train_loss' in training_history and 'self_training_stats' in training_history:
-        fig, ax = plt.subplots(figsize=(12, 6))
-        
-        # Stage 1: BCE
-        bce_epochs = training_history.get('epochs', [])
-        bce_losses = training_history.get('train_loss', [])
-        
-        if bce_epochs and bce_losses:
-            ax.plot(bce_epochs, bce_losses, 'o-', linewidth=2.5, markersize=7, 
-                   color='#2ecc71', label='Stage 1: BCE Loss', alpha=0.8)
-        
-        # Stage 2: Self-training
         stats = training_history['self_training_stats']
-        if 'iterations' in stats and 'losses' in stats:
+        
+        # Only create combined plot if self-training actually ran
+        if 'iterations' in stats and 'losses' in stats and len(stats['losses']) > 0:
+            fig, ax = plt.subplots(figsize=(12, 6))
+            
+            # Stage 1: BCE
+            bce_epochs = training_history.get('epochs', [])
+            bce_losses = training_history.get('train_loss', [])
+            
+            if bce_epochs and bce_losses:
+                ax.plot(bce_epochs, bce_losses, 'o-', linewidth=2.5, markersize=7, 
+                       color='#2ecc71', label='Stage 1: BCE Loss', alpha=0.8)
+            
+            # Stage 2: Self-training
             # Offset iterations to continue from BCE epochs
             offset = max(bce_epochs) if bce_epochs else 0
             st_iterations = [offset + i for i in stats['iterations']]
             ax.plot(st_iterations, stats['losses'], 's-', linewidth=2.5, markersize=7,
                    color='#e74c3c', label='Stage 2: Self-Training (KLD)', alpha=0.8)
-        
-        ax.set_xlabel('Training Step', fontsize=12)
-        ax.set_ylabel('Loss', fontsize=12)
-        ax.set_title('2-Stage Training: BCE → Self-Training', fontsize=14, fontweight='bold')
-        ax.legend(fontsize=11, loc='upper right')
-        ax.grid(True, alpha=0.3)
-        
-        # Add vertical line to separate stages
-        if bce_epochs:
-            ax.axvline(x=max(bce_epochs), color='gray', linestyle='--', linewidth=1.5, alpha=0.5)
-            ax.text(max(bce_epochs), ax.get_ylim()[1] * 0.9, 'Stage Transition', 
-                   ha='center', fontsize=10, color='gray')
-        
-        plt.tight_layout()
-        combined_path = training_dir / f'training_{timestamp}_two_stage.png'
-        plt.savefig(combined_path, dpi=300, bbox_inches='tight')
-        print(f"✓ 2-stage training plot saved: {combined_path}")
-        plt.close()
+            
+            ax.set_xlabel('Training Step', fontsize=12)
+            ax.set_ylabel('Loss', fontsize=12)
+            ax.set_title('2-Stage Training: BCE → Self-Training', fontsize=14, fontweight='bold')
+            ax.legend(fontsize=11, loc='upper right')
+            ax.grid(True, alpha=0.3)
+            
+            # Add vertical line to separate stages
+            if bce_epochs:
+                ax.axvline(x=max(bce_epochs), color='gray', linestyle='--', linewidth=1.5, alpha=0.5)
+                ax.text(max(bce_epochs), ax.get_ylim()[1] * 0.9, 'Stage Transition', 
+                       ha='center', fontsize=10, color='gray')
+            
+            plt.tight_layout()
+            combined_path = training_dir / f'training_{timestamp}_two_stage.png'
+            plt.savefig(combined_path, dpi=300, bbox_inches='tight')
+            print(f"✓ 2-stage training plot saved: {combined_path}")
+            plt.close()
     
     print(f"\n{'='*60}")
     print(f"  All training visualizations saved to: {training_dir}")
@@ -337,7 +341,10 @@ def train_baseline_model(args):
         
         print(f"\n✓ Stage 2 completed - Self-training finished")
         print(f"Self-training iterations: {len(stats['iterations'])}")
-        print(f"Final loss: {stats['losses'][-1]:.4f}")
+        if len(stats['losses']) > 0:
+            print(f"Final loss: {stats['losses'][-1]:.4f}")
+        else:
+            print(f"Warning: No self-training iterations completed (no confident pseudo-labels)")
         
         # Save combined training history
         training_history['self_training_stats'] = stats

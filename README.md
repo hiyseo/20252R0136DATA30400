@@ -94,13 +94,18 @@ python3 scripts/generate_submission.py \
 ### 4. 모델 평가 (선택)
 
 ```bash
+# 단독 실행
 python3 src/evaluation/evaluate_model.py \
-  --model_path data/output/models/baseline/best_model.pt \
+  --model_path data/models/baseline/best_model.pt \
   --model_type baseline \
   --save_predictions
+
+# 또는 run.sh로 실행 (Step 3.5)
+./run.sh --step 3.5
 ```
 
-**평가 데이터셋**: `data/raw/Amazon_products/test/test_corpus.txt` (실제 테스트 문서 사용)
+**평가 데이터**: Test set (19,658 samples) with silver labels (pseudo ground truth)  
+**주의**: Silver label을 정답으로 사용하므로 실제 성능과 다를 수 있습니다.
 
 **출력 위치**: `results/evaluation/{model_type}/`
 
@@ -108,18 +113,19 @@ python3 src/evaluation/evaluate_model.py \
 - **Micro F1/Precision/Recall**: 전체 예측의 정확도 (클래스 빈도 가중)
 - **Macro F1/Precision/Recall**: 클래스별 평균 (클래스 불균형 무시)
 - **Samples F1**: 샘플별 F1 평균 (문서 단위 성능)
-- **Top-k Accuracy**: 상위 k개 예측 중 정답 포함 비율
+- **Top-k Accuracy**: 상위 k개 예측 중 정답 포함 비율 (k=3, 5)
 - **Exact Match Ratio**: 모든 레이블이 정확히 일치하는 비율
-- **Hamming Loss**: 전체 레이블 중 오분류 비율
 
-**생성 파일**:
-- `evaluation_metrics.json` - 상세 메트릭 (JSON)
-- `confidence_distribution.png` - 예측 신뢰도 분포
-- `labels_per_sample_distribution.png` - 샘플당 레이블 수 분포
-- `evaluation_metrics.png` - 전체 메트릭 막대 그래프
-- `f1_precision_recall_comparison.png` - F1/Precision/Recall 비교
-- `topk_accuracy.png` - Top-3/Top-5/Exact Match 정확도
-- `per_class_performance.png` - 클래스별 성능 (상위/하위 10개)
+**생성 파일** (6개 시각화):
+1. `eval_{model_name}_metrics.json` - 상세 메트릭 (JSON)
+2. `eval_{model_name}_confidence_distribution.png` - 예측 신뢰도 분포 (positive/negative)
+3. `eval_{model_name}_labels_per_sample_distribution.png` - 샘플당 레이블 수 분포
+4. `eval_{model_name}_metrics.png` - 전체 메트릭 막대 그래프
+5. `eval_{model_name}_f1_precision_recall.png` - F1/Precision/Recall 비교
+6. `eval_{model_name}_topk_accuracy.png` - Top-3/Top-5/Exact Match 정확도
+7. `eval_{model_name}_per_class_performance.png` - 클래스별 성능 (상위/하위 10개)
+
+**실전 성능**: Kaggle 제출 후 실제 성능 확인 필요
 
 ---
 

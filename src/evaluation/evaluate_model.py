@@ -392,12 +392,12 @@ def main():
     
     # Create test dataloader
     print("Creating test dataloader...")
-    from src.dataset import MultiLabelDataset
+    from src.dataset import SilverLabelDataset
     from torch.utils.data import DataLoader
     from transformers import AutoTokenizer
     
     tokenizer = AutoTokenizer.from_pretrained(args.model_name)
-    test_dataset = MultiLabelDataset(
+    test_dataset = SilverLabelDataset(
         texts=data_loader.test_corpus,
         labels=test_labels,
         confidences=test_confidences,
