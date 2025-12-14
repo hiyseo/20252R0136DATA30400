@@ -30,6 +30,7 @@ def config_to_args(config: dict) -> argparse.Namespace:
     
     # Data
     args.train_labels_path = config['data']['train_labels_path']
+    args.test_labels_path = config['data']['test_labels_path']
     args.max_length = config['data']['max_length']
     args.num_workers = config['data']['num_workers']
     

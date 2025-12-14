@@ -419,6 +419,8 @@ def main():
     # Data
     parser.add_argument('--train_labels_path', type=str, 
                        default='data/intermediate/train_silver_labels.pkl')
+    parser.add_argument('--test_labels_path', type=str,
+                       default='data/intermediate/test_silver_labels.pkl')
     parser.add_argument('--max_length', type=int, default=128)
     parser.add_argument('--num_workers', type=int, default=4)
     
